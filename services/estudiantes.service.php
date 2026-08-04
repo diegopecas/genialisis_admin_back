@@ -1459,7 +1459,7 @@ class Estudiantes
      *   nino: { id_tipo_identificacion, numero_identificacion, primer_nombre,
      *           segundo_nombre, primer_apellido, segundo_apellido,
      *           fecha_nacimiento, id_genero, fecha_ingreso },
-     *   id_grupo, id_grado (opcional), anno (opcional),
+     *   id_grupo, anno (opcional),
      *   horarios: [ { id_dia_semana, hora_entrada, hora_salida } ] (opcional),
      *   acudientes: [ {
      *       id_tipo_identificacion, numero_identificacion, primer_nombre,
@@ -1480,7 +1480,6 @@ class Estudiantes
 
             $nino = isset($data['nino']) ? $data['nino'] : null;
             $id_grupo = isset($data['id_grupo']) ? $data['id_grupo'] : null;
-            $id_grado = isset($data['id_grado']) ? $data['id_grado'] : null;
             $anno = isset($data['anno']) && $data['anno'] ? $data['anno'] : date('Y');
             $horarios = isset($data['horarios']) ? $data['horarios'] : array();
             $acudientes = isset($data['acudientes']) ? $data['acudientes'] : array();

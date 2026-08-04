@@ -675,7 +675,6 @@ class ActividadesColaboradores
         nombre,
         icono,
         color,
-        calificable,
         orden
         
         FROM grupos

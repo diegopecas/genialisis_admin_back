@@ -1,8 +1,8 @@
 <?php
-define('DB_MASTER_HOST', '92.205.2.161');
-define('DB_MASTER_NAME', 'genialisis-master-prod');
-define('DB_MASTER_USERNAME', 'usr-genialisis-master-prod');
-define('DB_MASTER_PASSWORD', 'NhUIXGy#KYS5');
+define('DB_MASTER_HOST', '132.148.181.209');
+define('DB_MASTER_NAME', 'g_master_admin_prod');
+define('DB_MASTER_USERNAME', 'usr_g_master_admin_prod');
+define('DB_MASTER_PASSWORD', '9_G)31m&y*7+YN9Q');
 define('DB_MASTER_CHARSET', 'utf8mb4');
 define('DB_MASTER_DSN', 'mysql:host=' . DB_MASTER_HOST . ';dbname=' . DB_MASTER_NAME . ';charset=' . DB_MASTER_CHARSET);
 
