@@ -17,7 +17,7 @@ class PrestamosPagos
                 pc.numero_cuota,
                 pc.monto_cuota as monto_cuota_original,
                 pr.id_colaborador,
-                CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_usuario_registro,
+                CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_usuario_registro,
                 n.periodo as nombre_nomina
             FROM prestamos_pagos pp
             INNER JOIN tipos_pago_prestamo tp ON pp.id_tipo_pago = tp.id
@@ -26,9 +26,11 @@ class PrestamosPagos
             LEFT JOIN usuarios u ON pp.id_usuario_registro = u.id
             LEFT JOIN personas p ON u.id_persona = p.id
             LEFT JOIN nominas n ON pp.id_nomina = n.id
+            WHERE pp.id_tenant = :id_tenant
             ORDER BY pp.fecha_pago DESC
         ");
 
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -55,7 +57,7 @@ class PrestamosPagos
                 tp.nombre as nombre_tipo_pago,
                 pc.numero_cuota,
                 pc.monto_cuota as monto_cuota_original,
-                CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_usuario_registro,
+                CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_usuario_registro,
                 n.periodo as nombre_nomina,
                 n.periodo as periodo_nomina
             FROM prestamos_pagos pp
@@ -64,10 +66,10 @@ class PrestamosPagos
             LEFT JOIN usuarios u ON pp.id_usuario_registro = u.id
             LEFT JOIN personas p ON u.id_persona = p.id
             LEFT JOIN nominas n ON pp.id_nomina = n.id
-            WHERE pp.id = :id
+            WHERE pp.id = :id AND pp.id_tenant = :id_tenant
         ");
 
-            $stmt->execute(['id' => $id]);
+            $stmt->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json($result, 200);
@@ -93,7 +95,7 @@ class PrestamosPagos
                 pp.*,
                 tp.nombre as nombre_tipo_pago,
                 pc.numero_cuota,
-                CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_usuario_registro,
+                CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_usuario_registro,
                 n.nombre as nombre_nomina,
                 n.periodo as periodo_nomina
             FROM prestamos_pagos pp
@@ -103,10 +105,11 @@ class PrestamosPagos
             LEFT JOIN personas p ON u.id_persona = p.id
             LEFT JOIN nominas n ON pp.id_nomina = n.id
             WHERE pp.id_prestamo = :id_prestamo
+            AND pp.id_tenant = :id_tenant
             ORDER BY pp.fecha_pago DESC
         ");
 
-            $stmt->execute(['id_prestamo' => $id_prestamo]);
+            $stmt->execute(['id_prestamo' => $id_prestamo, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json($result, 200);
@@ -130,7 +133,7 @@ class PrestamosPagos
             SELECT 
                 pp.*,
                 tp.nombre as nombre_tipo_pago,
-                CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_usuario_registro,
+                CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_usuario_registro,
                 n.periodo as nombre_nomina,
                 n.periodo as periodo_nomina
             FROM prestamos_pagos pp
@@ -139,10 +142,11 @@ class PrestamosPagos
             LEFT JOIN personas p ON u.id_persona = p.id
             LEFT JOIN nominas n ON pp.id_nomina = n.id
             WHERE pp.id_cuota = :id_cuota
+            AND pp.id_tenant = :id_tenant
             ORDER BY pp.fecha_pago DESC
         ");
 
-            $stmt->execute(['id_cuota' => $id_cuota]);
+            $stmt->execute(['id_cuota' => $id_cuota, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json($result, 200);
@@ -172,12 +176,13 @@ class PrestamosPagos
                 LEFT JOIN estados_cuota_prestamo ec ON pc.id_estado = ec.id
                 LEFT JOIN prestamos_pagos pp ON pc.id = pp.id_cuota
                 WHERE pc.id_prestamo = :id_prestamo
+                AND pc.id_tenant = :id_tenant
                 GROUP BY pc.id
                 HAVING saldo > 0
                 ORDER BY pc.numero_cuota ASC
             ");
 
-            $stmt->execute(['id_prestamo' => $id_prestamo]);
+            $stmt->execute(['id_prestamo' => $id_prestamo, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json($result, 200);
@@ -211,6 +216,7 @@ class PrestamosPagos
             $db->beginTransaction();
 
             try {
+                $idPagoNuevo = null;
                 // Si hay cuotas específicas, procesar cada una
                 if (isset($data['cuotas']) && is_array($data['cuotas'])) {
                     $montoPorCuota = $data['monto_pagado'] / count($data['cuotas']);
@@ -225,9 +231,10 @@ class PrestamosPagos
                             FROM prestamos_cuotas pc
                             LEFT JOIN prestamos_pagos pp ON pc.id = pp.id_cuota
                             WHERE pc.id = :id_cuota
+                            AND pc.id_tenant = :id_tenant
                             GROUP BY pc.id
                         ");
-                        $stmtCuota->execute(['id_cuota' => $idCuota]);
+                        $stmtCuota->execute(['id_cuota' => $idCuota, 'id_tenant' => TenantContext::id()]);
                         $cuota = $stmtCuota->fetch(PDO::FETCH_ASSOC);
 
                         if (!$cuota) {
@@ -240,6 +247,8 @@ class PrestamosPagos
                         // Insertar el pago
                         $stmtPago = $db->prepare("
                             INSERT INTO prestamos_pagos (
+                                id,
+                                id_tenant,
                                 id_prestamo,
                                 id_cuota,
                                 id_nomina,
@@ -251,6 +260,8 @@ class PrestamosPagos
                                 id_usuario_registro,
                                 fecha_registro
                             ) VALUES (
+                                :id,
+                                :id_tenant,
                                 :id_prestamo,
                                 :id_cuota,
                                 :id_nomina,
@@ -264,7 +275,10 @@ class PrestamosPagos
                             )
                         ");
 
+                        $idPagoNuevo = Uuid::generar();
                         $stmtPago->execute([
+                            'id' => $idPagoNuevo,
+                            'id_tenant' => TenantContext::id(),
                             'id_prestamo' => $data['id_prestamo'],
                             'id_cuota' => $idCuota,
                             'id_nomina' => $data['id_nomina'] ?? null,
@@ -286,10 +300,12 @@ class PrestamosPagos
                                 SET id_estado = 2,
                                     fecha_pago = :fecha_pago
                                 WHERE id = :id_cuota
+                                AND id_tenant = :id_tenant
                             ");
                             $stmtUpdateCuota->execute([
                                 'id_cuota' => $idCuota,
-                                'fecha_pago' => $data['fecha_pago']
+                                'fecha_pago' => $data['fecha_pago'],
+                                'id_tenant' => TenantContext::id()
                             ]);
                         }
                     }
@@ -304,7 +320,7 @@ class PrestamosPagos
                 Flight::json([
                     'success' => true,
                     'message' => 'Pago registrado correctamente',
-                    'id' => $db->lastInsertId()
+                    'id' => $idPagoNuevo
                 ], 200);
             } catch (Exception $e) {
                 $db->rollBack();
@@ -342,10 +358,12 @@ class PrestamosPagos
                     referencia = :referencia,
                     observaciones = :observaciones
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
 
             $stmt->execute([
                 'id' => $data['id'],
+                'id_tenant' => TenantContext::id(),
                 'fecha_pago' => $data['fecha_pago'],
                 'monto_pagado' => $data['monto_pagado'],
                 'id_tipo_pago' => $data['id_tipo_pago'],
@@ -385,8 +403,9 @@ class PrestamosPagos
                 FROM prestamos p
                 INNER JOIN prestamos_pagos pp ON p.id = pp.id_prestamo
                 WHERE pp.id = :id_pago
+                AND pp.id_tenant = :id_tenant
             ");
-            $stmtCheck->execute(['id_pago' => $data['id']]);
+            $stmtCheck->execute(['id_pago' => $data['id'], 'id_tenant' => TenantContext::id()]);
             $prestamo = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
             if ($prestamo['id_estado'] == 2) {
@@ -405,8 +424,9 @@ class PrestamosPagos
                     SELECT id_prestamo, id_cuota, monto_pagado 
                     FROM prestamos_pagos 
                     WHERE id = :id
+                    AND id_tenant = :id_tenant
                 ");
-                $stmtPago->execute(['id' => $data['id']]);
+                $stmtPago->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
                 $pago = $stmtPago->fetch(PDO::FETCH_ASSOC);
 
                 if (!$pago) {
@@ -414,8 +434,8 @@ class PrestamosPagos
                 }
 
                 // Eliminar el pago
-                $stmtDelete = $db->prepare("DELETE FROM prestamos_pagos WHERE id = :id");
-                $stmtDelete->execute(['id' => $data['id']]);
+                $stmtDelete = $db->prepare("DELETE FROM prestamos_pagos WHERE id = :id AND id_tenant = :id_tenant");
+                $stmtDelete->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
 
                 // Si tiene cuota asociada, actualizar su estado
                 if ($pago['id_cuota']) {
@@ -427,9 +447,10 @@ class PrestamosPagos
                         FROM prestamos_cuotas pc
                         LEFT JOIN prestamos_pagos pp ON pc.id = pp.id_cuota
                         WHERE pc.id = :id_cuota
+                        AND pc.id_tenant = :id_tenant
                         GROUP BY pc.id
                     ");
-                    $stmtSaldoCuota->execute(['id_cuota' => $pago['id_cuota']]);
+                    $stmtSaldoCuota->execute(['id_cuota' => $pago['id_cuota'], 'id_tenant' => TenantContext::id()]);
                     $cuota = $stmtSaldoCuota->fetch(PDO::FETCH_ASSOC);
 
                     // Si ya no está completamente pagada, volver a pendiente
@@ -439,8 +460,9 @@ class PrestamosPagos
                             SET id_estado = 1,
                                 fecha_pago = NULL
                             WHERE id = :id_cuota
+                            AND id_tenant = :id_tenant
                         ");
-                        $stmtUpdateCuota->execute(['id_cuota' => $pago['id_cuota']]);
+                        $stmtUpdateCuota->execute(['id_cuota' => $pago['id_cuota'], 'id_tenant' => TenantContext::id()]);
                     }
                 }
 
@@ -481,8 +503,8 @@ class PrestamosPagos
 
             $db = Flight::db();
 
-            $stmt = $db->prepare("DELETE FROM prestamos_pagos WHERE id = :id");
-            $stmt->execute(['id' => $data['id']]);
+            $stmt = $db->prepare("DELETE FROM prestamos_pagos WHERE id = :id AND id_tenant = :id_tenant");
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
 
             Flight::json([
                 'success' => true,
@@ -509,9 +531,10 @@ class PrestamosPagos
             FROM prestamos p
             LEFT JOIN prestamos_pagos pp ON p.id = pp.id_prestamo
             WHERE p.id = :id_prestamo
+            AND p.id_tenant = :id_tenant
             GROUP BY p.id
         ");
-        $stmtTotal->execute(['id_prestamo' => $idPrestamo]);
+        $stmtTotal->execute(['id_prestamo' => $idPrestamo, 'id_tenant' => TenantContext::id()]);
         $result = $stmtTotal->fetch(PDO::FETCH_ASSOC);
 
         $totalPagado = $result['total_pagado'];
@@ -526,10 +549,12 @@ class PrestamosPagos
             UPDATE prestamos 
             SET id_estado = :id_estado
             WHERE id = :id_prestamo
+            AND id_tenant = :id_tenant
         ");
         $stmtUpdate->execute([
             'id_prestamo' => $idPrestamo,
-            'id_estado' => $nuevoEstado
+            'id_estado' => $nuevoEstado,
+            'id_tenant' => TenantContext::id()
         ]);
     }
 }

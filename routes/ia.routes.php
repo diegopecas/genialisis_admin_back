@@ -23,9 +23,9 @@ Flight::route('PUT /ia-configuracion', [IaConfiguracion::class, 'replace']);
 
 // IA-COBERTURA CURRICULAR
 
-// IA-MÃQUINA DE ACTIVIDADES
+// IA-MÁQUINA DE ACTIVIDADES
 
-// IA-MÃQUINA DE ACTIVIDADES DE EVALUACIÃ“N (por logros del corte)
+// IA-MÁQUINA DE ACTIVIDADES DE EVALUACIÓN (por logros del corte)
 
 // IA-MEJORAR TEXTO
 Flight::route('POST /ia-mejorar-texto/mejorar', [IaMejorarTexto::class, 'mejorar']);

@@ -6,8 +6,6 @@ Flight::route('GET /generos', [Generos::class, 'getAll']);
 
 Flight::route('GET /niveles-escolaridad', [NivelesEscolaridad::class, 'getAll']);
 
-Flight::route('GET /tipos-dias', [TiposDias::class, 'getAll']);
-Flight::route('GET /tipos-evento-calendario', [TiposEventoCalendario::class, 'getAll']);
 Flight::route('GET /dias-semana', [DiasSemana::class, 'getAll']);
 
 // PAISES
@@ -31,22 +29,8 @@ Flight::route('DELETE /cargos', [Cargos::class, 'delete']);
 
 
 // CALENDARIOS
-Flight::route('GET /calendarios', [Calendarios::class, 'getAll']);
-Flight::route('GET /calendarios/mes/@anio/@mes', [Calendarios::class, 'getCalendarioMes']);
-Flight::route('GET /calendarios/@id', [Calendarios::class, 'getById']);
-Flight::route('POST /calendarios', [Calendarios::class, 'new']);
-Flight::route('PUT /calendarios', [Calendarios::class, 'replace']);
-Flight::route('DELETE /calendarios', [Calendarios::class, 'delete']);
-Flight::route('GET /calendarios/habiles/@fecha_inicial/@fecha_final', [Calendarios::class, 'getDiasHabiles']);
-Flight::route('GET /calendarios/rango/@fecha_inicial/@fecha_final', [Calendarios::class, 'getByRangoFechas']);
 
 // CALENDARIOS EVENTOS
-Flight::route('GET /calendarios-eventos', [CalendariosEventos::class, 'getAll']);
-Flight::route('GET /calendarios-eventos/mes/@anio/@mes', [CalendariosEventos::class, 'getByMes']);
-Flight::route('GET /calendarios-eventos/@id', [CalendariosEventos::class, 'getById']);
-Flight::route('POST /calendarios-eventos', [CalendariosEventos::class, 'new']);
-Flight::route('PUT /calendarios-eventos', [CalendariosEventos::class, 'replace']);
-Flight::route('DELETE /calendarios-eventos', [CalendariosEventos::class, 'delete']);
 
 
 // CONFIGURACIÓN GLOBAL

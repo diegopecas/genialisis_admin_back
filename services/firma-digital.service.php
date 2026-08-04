@@ -4,7 +4,8 @@ class FirmaDigital
     private static function obtenerApiKey()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'firma_digital_api_key'");
+        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'firma_digital_api_key' AND id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $result = $sentence->fetch();
         return $result ? $result['valor_texto'] : null;
@@ -13,7 +14,8 @@ class FirmaDigital
     private static function obtenerTenantCode()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'tenant_code'");
+        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'tenant_code' AND id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $result = $sentence->fetch();
         return $result ? $result['valor_texto'] : null;
@@ -22,7 +24,8 @@ class FirmaDigital
     private static function obtenerProveedor()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'firma_digital_proveedor'");
+        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'firma_digital_proveedor' AND id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $result = $sentence->fetch();
         return $result ? $result['valor_texto'] : 'firma.dev';
@@ -31,7 +34,8 @@ class FirmaDigital
     private static function obtenerNombreInstitucion()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'institucion_nombre'");
+        $sentence = $db->prepare("SELECT valor_texto FROM configuracion_global WHERE clave = 'institucion_nombre' AND id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $result = $sentence->fetch();
         return $result ? $result['valor_texto'] : 'Institución';
@@ -48,9 +52,10 @@ class FirmaDigital
                 FROM documentos_personas dp
                 INNER JOIN tipos_documentos td ON dp.id_tipo_documento = td.id
                 INNER JOIN personas p ON dp.id_persona = p.id
-                WHERE dp.id = :id
+                WHERE dp.id = :id AND dp.id_tenant = :id_tenant
             ");
             $sentenceDoc->bindParam(':id', $idDocumento);
+            $sentenceDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceDoc->execute();
             $documento = $sentenceDoc->fetch();
 
@@ -100,7 +105,8 @@ class FirmaDigital
             // envíe 'firmantes_externos', para casar con el placeholder R99.
             $representanteEmail = null;
             $representanteNombre = null;
-            $sentenceRep = $db->prepare("SELECT clave, valor_texto FROM configuracion_global WHERE clave IN ('representante_legal_email', 'representante_legal_nombre')");
+            $sentenceRep = $db->prepare("SELECT clave, valor_texto FROM configuracion_global WHERE clave IN ('representante_legal_email', 'representante_legal_nombre') AND id_tenant = :id_tenant");
+            $sentenceRep->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceRep->execute();
             foreach ($sentenceRep->fetchAll(PDO::FETCH_ASSOC) as $filaRep) {
                 if ($filaRep['clave'] === 'representante_legal_email' && !empty($filaRep['valor_texto'])) {
@@ -129,9 +135,9 @@ class FirmaDigital
                     primer_apellido,
                     COALESCE(segundo_apellido, '') as segundo_apellido
                 FROM personas
-                WHERE correo_electronico IN ($placeholders)
+                WHERE correo_electronico IN ($placeholders) AND id_tenant = ?
             ");
-            $sentencePersonas->execute($emailsFirmantes);
+            $sentencePersonas->execute(array_merge($emailsFirmantes, [TenantContext::id()]));
             $personasData = $sentencePersonas->fetchAll(PDO::FETCH_ASSOC);
             
             // Crear mapa de email -> datos persona
@@ -394,12 +400,13 @@ class FirmaDigital
                     firma_digital_url = :firma_url,
                     fecha_envio_firma = NOW(),
                     proveedor_firma = :proveedor
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $updateDoc->bindParam(':firma_id', $signingRequestId);
             $updateDoc->bindParam(':firma_url', $firmaUrl);
             $updateDoc->bindParam(':proveedor', $proveedor);
             $updateDoc->bindParam(':id', $idDocumento);
+            $updateDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $updateDoc->execute();
 
             Flight::json([
@@ -424,9 +431,10 @@ class FirmaDigital
             $sentenceDoc = $db->prepare("
                 SELECT firma_digital_id, firma_digital_estado, proveedor_firma, ruta_archivo, nombre_archivo
                 FROM documentos_personas 
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $sentenceDoc->bindParam(':id', $idDocumento);
+            $sentenceDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceDoc->execute();
             $documento = $sentenceDoc->fetch();
 
@@ -573,11 +581,12 @@ class FirmaDigital
                 UPDATE documentos_personas 
                 SET firma_digital_estado = :estado,
                     fecha_firmado = CASE WHEN :estado_check = 'firmado' THEN NOW() ELSE fecha_firmado END
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $updateDoc->bindParam(':estado', $estadoMapeado);
             $updateDoc->bindParam(':estado_check', $estadoMapeado);
             $updateDoc->bindParam(':id', $idDocumento);
+            $updateDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $updateDoc->execute();
 
             // Si está firmado, descargar y reemplazar archivo
@@ -631,11 +640,12 @@ class FirmaDigital
                                 $updateRuta = $db->prepare("
                                     UPDATE documentos_personas 
                                     SET ruta_archivo = :ruta, nombre_archivo = :nombre
-                                    WHERE id = :id
+                                    WHERE id = :id AND id_tenant = :id_tenant
                                 ");
                                 $updateRuta->bindParam(':ruta', $rutaRelativa);
                                 $updateRuta->bindParam(':nombre', $nuevoNombre);
                                 $updateRuta->bindParam(':id', $idDocumento);
+                                $updateRuta->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                                 $updateRuta->execute();
                                 
                                 error_log("✅ BD actualizada");
@@ -688,9 +698,10 @@ class FirmaDigital
             $sentenceDoc = $db->prepare("
                 SELECT firma_digital_id, firma_digital_estado, nombre_archivo, proveedor_firma, ruta_archivo
                 FROM documentos_personas 
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $sentenceDoc->bindParam(':id', $idDocumento);
+            $sentenceDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceDoc->execute();
             $documento = $sentenceDoc->fetch();
 
@@ -782,11 +793,12 @@ class FirmaDigital
             $updateDoc = $db->prepare("
                 UPDATE documentos_personas 
                 SET ruta_archivo = :ruta, nombre_archivo = :nombre
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $updateDoc->bindParam(':ruta', $rutaRelativa);
             $updateDoc->bindParam(':nombre', $nuevoNombre);
             $updateDoc->bindParam(':id', $idDocumento);
+            $updateDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $updateDoc->execute();
 
             Flight::json([
@@ -823,9 +835,10 @@ class FirmaDigital
             $sentenceDoc = $db->prepare("
                 SELECT firma_digital_id, firma_digital_estado, nombre_archivo
                 FROM documentos_personas 
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $sentenceDoc->bindParam(':id', $idDocumento);
+            $sentenceDoc->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceDoc->execute();
             $documento = $sentenceDoc->fetch();
 

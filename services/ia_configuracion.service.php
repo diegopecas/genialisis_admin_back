@@ -7,8 +7,10 @@ class IaConfiguracion
         $sentence = $db->prepare("
             SELECT id, clave, valor, descripcion, fecha_actualizacion
             FROM ia_configuracion
+            WHERE id_tenant = :id_tenant
             ORDER BY id
         ");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -21,8 +23,10 @@ class IaConfiguracion
             SELECT id, clave, valor, descripcion, fecha_actualizacion
             FROM ia_configuracion
             WHERE id = :id
+            AND id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -41,11 +45,12 @@ class IaConfiguracion
             UPDATE ia_configuracion SET 
                 valor = :valor,
                 descripcion = :descripcion
-            WHERE id = :id
+            WHERE id = :id AND id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
         $sentence->bindParam(':valor', $valor);
         $sentence->bindParam(':descripcion', $descripcion);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         self::getById($id);

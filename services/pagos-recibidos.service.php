@@ -78,6 +78,7 @@ class PagosRecibidos
                 personas p_ua ON ua.id_persona = p_ua.id
             LEFT JOIN 
                 cuenta_pagada cp ON pr.id = cp.id_pago_recibido
+            WHERE pr.id_tenant = :id_tenant
             GROUP BY 
                 pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente, 
                 a.id_estudiante, p.primer_nombre, p.segundo_nombre,
@@ -93,6 +94,7 @@ class PagosRecibidos
                 p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido
             ORDER BY pr.fecha DESC
         ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -130,6 +132,7 @@ class PagosRecibidos
             pr.anulado,
             pr.fecha_anulacion,
             pr.id_usuario_anulacion,
+            pr.id_documento_persona,
             CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
                     p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
             CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
@@ -153,7 +156,7 @@ class PagosRecibidos
         LEFT JOIN 
             personas p_ua ON ua.id_persona = p_ua.id
         WHERE 
-            pr.id = :id
+            pr.id = :id AND pr.id_tenant = :id_tenant
         GROUP BY 
             pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente, pr.id_tipo_pago, pr.valor_recibido,
             pr.observaciones, pr.referencia_bancaria, pr.fecha_registro,
@@ -161,9 +164,10 @@ class PagosRecibidos
             p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
             uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
             pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido
+            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, pr.id_documento_persona
     ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -202,6 +206,7 @@ class PagosRecibidos
                     pr.anulado,
                     pr.fecha_anulacion,
                     pr.id_usuario_anulacion,
+                    pr.id_documento_persona,
                     ua.usuario AS nombre_usuario_anulacion,
                     CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
                            p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, '')) AS nombre_completo_usuario_anulacion
@@ -230,7 +235,7 @@ class PagosRecibidos
                 LEFT JOIN 
                     cuenta_pagada cp ON pr.id = cp.id_pago_recibido
                 WHERE 
-                    pr.id_estudiante = :id
+                    pr.id_estudiante = :id AND pr.id_tenant = :id_tenant
                 GROUP BY 
                     pr.id, pr.fecha, pr.id_acudiente, a.id_estudiante, p.primer_nombre, p.segundo_nombre,
                     p.primer_apellido, p.segundo_apellido, ta.nombre, pr.id_tipo_pago, tp.nombre,
@@ -239,11 +244,12 @@ class PagosRecibidos
                     p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
                     uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
                     pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-                    p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido
+                    p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, pr.id_documento_persona
                 order by pr.fecha desc, pr.id desc
         ");
 
         $sentence->bindParam(':id', $idEstudiante);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -307,7 +313,7 @@ class PagosRecibidos
         LEFT JOIN 
             cuenta_pagada cp ON pr.id = cp.id_pago_recibido
         WHERE 
-            pr.id_colaborador = :id
+            pr.id_colaborador = :id AND pr.id_tenant = :id_tenant
         GROUP BY 
             pr.id, pr.fecha, pr.id_colaborador, pr.id_acudiente, pc.primer_nombre, pc.segundo_nombre,
             pc.primer_apellido, pc.segundo_apellido, pr.id_tipo_pago, tp.nombre,
@@ -321,6 +327,7 @@ class PagosRecibidos
     ");
 
         $sentence->bindParam(':id', $idColaborador);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -345,6 +352,8 @@ class PagosRecibidos
             $id_usuario_registro = Flight::request()->data['id_usuario_registro'];
             $fecha_contabilizacion = Flight::request()->data['fecha_contabilizacion'];
             $id_usuario_contable = Flight::request()->data['id_usuario_contable'];
+            // Opcional: id del documento (comprobante) asociado al pago. Si no viene, queda null.
+            $id_documento_persona = isset(Flight::request()->data['id_documento_persona']) ? Flight::request()->data['id_documento_persona'] : null;
 
             // Validar que solo uno de los dos esté presente
             if (($id_estudiante !== null && $id_colaborador !== null) ||
@@ -353,11 +362,14 @@ class PagosRecibidos
                 throw new Exception('Debe especificar id_estudiante o id_colaborador, pero no ambos');
             }
 
-            $query = "INSERT INTO pagos_recibidos(fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, valor_recibido, observaciones, referencia_bancaria, fecha_registro, id_usuario_registro, fecha_contabilizacion, id_usuario_contable) 
-                 VALUES (:fecha, :id_estudiante, :id_colaborador, :id_acudiente, :id_tipo_pago, :valor_recibido, :observaciones, :referencia_bancaria, :fecha_registro, :id_usuario_registro, :fecha_contabilizacion, :id_usuario_contable)";
+            $query = "INSERT INTO pagos_recibidos(id, id_tenant, fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, valor_recibido, observaciones, referencia_bancaria, fecha_registro, id_usuario_registro, fecha_contabilizacion, id_usuario_contable, id_documento_persona) 
+                 VALUES (:id, :id_tenant, :fecha, :id_estudiante, :id_colaborador, :id_acudiente, :id_tipo_pago, :valor_recibido, :observaciones, :referencia_bancaria, :fecha_registro, :id_usuario_registro, :fecha_contabilizacion, :id_usuario_contable, :id_documento_persona)";
 
             $sentence = $db->prepare($query);
 
+            $idPagoNew = Uuid::generar();
+            $sentence->bindValue(':id', $idPagoNew);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             // Vincular parámetros
             $sentence->bindParam(':fecha', $fecha);
             $sentence->bindParam(':id_estudiante', $id_estudiante);
@@ -371,10 +383,11 @@ class PagosRecibidos
             $sentence->bindParam(':id_usuario_registro', $id_usuario_registro);
             $sentence->bindParam(':fecha_contabilizacion', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario_contable', $id_usuario_contable);
+            $sentence->bindParam(':id_documento_persona', $id_documento_persona);
 
             $sentence->execute();
 
-            $id = $db->lastInsertId();
+            $id = $idPagoNew;
             Flight::json(array('id' => $id));
         } catch (PDOException $e) {
             error_log("Error PDO en new(): " . $e->getMessage());
@@ -411,7 +424,7 @@ class PagosRecibidos
                 throw new Exception('Debe especificar id_estudiante o id_colaborador, pero no ambos');
             }
 
-            $sentence = $db->prepare("UPDATE pagos_recibidos SET fecha = :fecha, id_estudiante = :id_estudiante, id_colaborador = :id_colaborador, id_acudiente = :id_acudiente, id_tipo_pago = :id_tipo_pago, valor_recibido = :valor_recibido, observaciones = :observaciones, referencia_bancaria = :referencia_bancaria, fecha_registro = :fecha_registro, id_usuario_registro = :id_usuario_registro, fecha_contabilizacion = :fecha_contabilizacion, id_usuario_contable = :id_usuario_contable WHERE id = :id");
+            $sentence = $db->prepare("UPDATE pagos_recibidos SET fecha = :fecha, id_estudiante = :id_estudiante, id_colaborador = :id_colaborador, id_acudiente = :id_acudiente, id_tipo_pago = :id_tipo_pago, valor_recibido = :valor_recibido, observaciones = :observaciones, referencia_bancaria = :referencia_bancaria, fecha_registro = :fecha_registro, id_usuario_registro = :id_usuario_registro, fecha_contabilizacion = :fecha_contabilizacion, id_usuario_contable = :id_usuario_contable WHERE id = :id AND id_tenant = :id_tenant");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha', $fecha);
@@ -427,6 +440,7 @@ class PagosRecibidos
             $sentence->bindParam(':fecha_contabilizacion', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario_contable', $id_usuario_contable);
 
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             self::getById($id);
         } catch (Exception $e) {
@@ -440,8 +454,9 @@ class PagosRecibidos
 
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("DELETE FROM pagos_recibidos WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM pagos_recibidos WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         Flight::json(array('id' => $id));
     }
@@ -465,11 +480,13 @@ class PagosRecibidos
                     id_usuario_anulacion = :id_usuario_anulacion,
                     observaciones = CONCAT(observaciones, ' | ANULADO: ', :observaciones_anulacion)
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':id_usuario_anulacion', $id_usuario_anulacion);
             $sentence->bindParam(':observaciones_anulacion', $observaciones_anulacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             // Desasociar reportes de pago vinculados a este pago anulado
@@ -520,12 +537,14 @@ class PagosRecibidos
                     id_usuario_contable = :id_usuario_contable,
                     observaciones = CONCAT(observaciones, ' | CONTABILIZADO: ', :observaciones_contabilizacion)
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha_contabilizacion', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario_contable', $id_usuario_contable);
             $sentence->bindParam(':observaciones_contabilizacion', $observaciones_contabilizacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             // Devolvemos el registro actualizado
@@ -585,9 +604,10 @@ class PagosRecibidos
             LEFT JOIN 
                 personas p_uc ON uc.id_persona = p_uc.id
             WHERE 
-                pr.id = :id
+                pr.id = :id AND pr.id_tenant = :id_tenant
         ");
         $sentencePago->bindParam(':id', $id_pago_recibido);
+        $sentencePago->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentencePago->execute();
         $pago = $sentencePago->fetch(PDO::FETCH_ASSOC);
 
@@ -753,9 +773,10 @@ class PagosRecibidos
                 LEFT JOIN 
                     personas p_uc ON uc.id_persona = p_uc.id
                 WHERE 
-                    pr.id = :id
+                    pr.id = :id AND pr.id_tenant = :id_tenant
             ");
         $sentencePago->bindParam(':id', $id_pago_recibido);
+        $sentencePago->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentencePago->execute();
         $pago = $sentencePago->fetch(PDO::FETCH_ASSOC);
 
@@ -926,6 +947,7 @@ class PagosRecibidos
             WHERE 
                 pr.id_usuario_contable IS NULL 
                 AND pr.anulado != 1
+                AND pr.id_tenant = :id_tenant
             GROUP BY 
                 pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente,
                 p_est.primer_nombre, p_est.segundo_nombre, p_est.primer_apellido, p_est.segundo_apellido,
@@ -937,6 +959,7 @@ class PagosRecibidos
             ORDER BY 
                 pr.fecha DESC, pr.id DESC
         ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -986,6 +1009,7 @@ class PagosRecibidos
                         id_usuario_contable = :id_usuario_contable,
                         observaciones = CONCAT(observaciones, ' | CONTABLILIZACIÓN MÚLTIPLE: ', :observaciones_contabilizacion)
                     WHERE id = :id
+                    AND id_tenant = :id_tenant
                     AND id_usuario_contable IS NULL
                     AND anulado != 1
                 ");
@@ -996,6 +1020,7 @@ class PagosRecibidos
                 // Ejecutar la actualización para cada ID
                 foreach ($ids as $id) {
                     $sentence->bindParam(':id', $id);
+                    $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $sentence->bindParam(':fecha_contabilizacion', $fecha_contabilizacion);
                     $sentence->bindParam(':id_usuario_contable', $id_usuario_contable);
                     $sentence->bindParam(':observaciones_contabilizacion', $observaciones_contabilizacion);
@@ -1070,8 +1095,10 @@ class PagosRecibidos
                 LEFT JOIN estudiantes_x_grupos eg ON e.id = eg.id_estudiante AND eg.activo = 1
                 LEFT JOIN grupos g ON eg.id_grupo = g.id
                 WHERE e.activo = 1
+                AND e.id_tenant = :id_tenant
                 ORDER BY g.nombre, p.primer_nombre, p.primer_apellido
             ");
+            $stmtEstudiantes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtEstudiantes->execute();
             $estudiantes = $stmtEstudiantes->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1100,10 +1127,12 @@ class PagosRecibidos
                     LEFT JOIN pagos_recibidos pr_cp ON cp.id_pago_recibido = pr_cp.id 
                         AND (pr_cp.anulado = 0 OR pr_cp.anulado IS NULL)
                 WHERE (c.anulado = 0 OR c.anulado IS NULL)
+                AND c.id_tenant = :id_tenant
                 GROUP BY c.id, c.id_persona, e.id, c.fecha, c.valor, c.detalle, ps.nombre
                 HAVING saldo > 0
                 ORDER BY e.id, c.fecha ASC
             ");
+            $stmtCuentas->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtCuentas->execute();
             $cuentas = $stmtCuentas->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1123,8 +1152,10 @@ class PagosRecibidos
                 INNER JOIN tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
                 WHERE a.activo = 1
                   AND a.es_responsable_pago = 1
+                  AND a.id_tenant = :id_tenant
                 ORDER BY a.id_estudiante, ta.nombre
             ");
+            $stmtAcudientes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtAcudientes->execute();
             $acudientes = $stmtAcudientes->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1133,7 +1164,8 @@ class PagosRecibidos
             }
 
             // 4. Tipos de pago con requiere_documento
-            $stmtTiposPago = $db->prepare("SELECT id, nombre, requiere_documento FROM tipos_pagos ORDER BY id");
+            $stmtTiposPago = $db->prepare("SELECT id, nombre, requiere_documento FROM tipos_pagos WHERE id_tenant = :id_tenant ORDER BY id");
+            $stmtTiposPago->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtTiposPago->execute();
             $tiposPago = $stmtTiposPago->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1177,107 +1209,71 @@ class PagosRecibidos
                 return;
             }
 
+            // Configuración de IA del tenant: se cargan todas las claves en un solo arreglo.
             $db = Flight::db();
-            $stmt = $db->prepare("SELECT valor FROM ia_configuracion WHERE clave = 'gemini_api_key' LIMIT 1");
-            $stmt->execute();
-            $config = $stmt->fetch();
+            $stmtConfig = $db->prepare("SELECT clave, valor FROM ia_configuracion WHERE id_tenant = :id_tenant");
+            $stmtConfig->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $stmtConfig->execute();
+            $config = array();
+            foreach ($stmtConfig->fetchAll(PDO::FETCH_ASSOC) as $filaConfig) {
+                $config[$filaConfig['clave']] = $filaConfig['valor'];
+            }
 
-            if (!$config || empty($config['valor'])) {
+            if (empty($config['gemini_api_key'])) {
                 Flight::json(array('error' => 'API Key de Gemini no configurada en ia_configuracion'), 500);
                 return;
             }
 
-            $apiKey = $config['valor'];
-
-            $stmtEstado = $db->prepare("SELECT valor FROM ia_configuracion WHERE clave = 'estado_servicio' LIMIT 1");
-            $stmtEstado->execute();
-            $estado = $stmtEstado->fetch();
-
-            if ($estado && $estado['valor'] !== 'activo') {
+            if (isset($config['estado_servicio']) && $config['estado_servicio'] !== 'activo') {
                 Flight::json(array('error' => 'El servicio de IA se encuentra pausado o en mantenimiento'), 503);
                 return;
             }
 
+            // Preparar el archivo para la IA.
             $contenidoArchivo = file_get_contents($archivo['tmp_name']);
             $base64 = base64_encode($contenidoArchivo);
-            $mimeType = ($extension === 'pdf') ? 'application/pdf' : 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
+            $esPdf = ($extension === 'pdf');
+            $mimeType = $esPdf ? 'application/pdf' : 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
 
+            // Se pide el monto como TEXTO literal (tal como está impreso). El número
+            // entero se calcula en el backend (normalizarMontoColombiano), para no
+            // depender de que la IA convierta bien el formato colombiano.
             $prompt = "Analiza este comprobante de pago bancario colombiano y extrae ÚNICAMENTE los siguientes datos en formato JSON estricto. "
                 . "No incluyas explicaciones ni texto adicional, SOLO el JSON:\n\n"
                 . "{\n"
-                . "  \"valor\": (número entero, solo dígitos, sin puntos ni comas),\n"
-                . "  \"referencia\": (string con el número de referencia, aprobación o comprobante),\n"
-                . "  \"fecha\": (string en formato YYYY-MM-DD)\n"
+                . "  \"monto_texto\": (string con el monto TAL CUAL aparece impreso en el comprobante, conservando sus puntos y comas, por ejemplo \"35.000,00\" o \"1.200.000\"),\n"
+                . "  \"referencia\": (string entre comillas SIEMPRE, aunque sean solo dígitos, para no perder ninguno; es el número de referencia, aprobación o comprobante),\n"
+                . "  \"fecha\": (string en formato YYYY-MM-DD),\n"
+                . "  \"banco\": (string con el nombre de la entidad o banco emisor del comprobante, por ejemplo: Nequi, Bancolombia, Daviplata, etc.)\n"
                 . "}\n\n"
                 . "Si no puedes identificar algún campo, usa null para ese campo.\n"
-                . "IMPORTANTE sobre el valor:\n"
-                . "- Este es un comprobante colombiano donde el PUNTO es separador de MILES y la COMA es separador de decimales.\n"
-                . "- Ejemplo: '$150.000,00' significa CIENTO CINCUENTA MIL pesos = 150000\n"
-                . "- Ejemplo: '$1.200.000,00' significa UN MILLÓN DOSCIENTOS MIL pesos = 1200000\n"
-                . "- Elimina los puntos de miles y los decimales, retorna solo el número entero.\n"
-                . "- El valor debe ser un número entero sin separadores.";
+                . "IMPORTANTE sobre el monto_texto:\n"
+                . "- NO calcules ni conviertas el número: devuélvelo exactamente como está impreso, incluyendo los puntos y las comas.\n"
+                . "- Ejemplo: si el comprobante muestra '$ 35.000,00', devuelve \"35.000,00\".\n"
+                . "- Ejemplo: si el comprobante muestra '$1.200.000', devuelve \"1.200.000\".\n"
+                . "- Devuelve solo el número con sus separadores, sin el símbolo de peso ni texto adicional.\n"
+                . "IMPORTANTE sobre el banco:\n"
+                . "- Devuelve el nombre de la entidad financiera que emitió el comprobante (la app o banco de origen).";
 
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" . $apiKey;
+            // La cadena de proveedores (Gemini -> OpenRouter -> Groq) y los reintentos
+            // los maneja IaVision; acá solo interpretamos el texto que devuelva.
+            $resultado = IaVision::extraerDeImagen($config, $base64, $mimeType, $prompt, $esPdf);
 
-            $payload = array(
-                'contents' => array(
-                    array(
-                        'parts' => array(
-                            array(
-                                'inlineData' => array(
-                                    'mimeType' => $mimeType,
-                                    'data' => $base64
-                                )
-                            ),
-                            array(
-                                'text' => $prompt
-                            )
-                        )
-                    )
-                ),
-                'generationConfig' => array(
-                    'temperature' => 0.1,
-                    'maxOutputTokens' => 500
-                )
-            );
+            // Registro de uso por proveedor (best-effort; nunca rompe la lectura).
+            IaVision::registrarUso($db, TenantContext::id(), $resultado);
 
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
-
-            if ($curlError) {
-                Flight::json(array('error' => 'Error de conexión con el servicio de IA: ' . $curlError), 500);
+            if (!$resultado['success']) {
+                Flight::json(array('error' => 'No se pudo analizar el comprobante con ningún proveedor de IA: ' . $resultado['error']), 503);
                 return;
             }
 
-            if ($httpCode !== 200) {
-                error_log("Error HTTP Gemini: " . $httpCode . " - " . $response);
-                Flight::json(array('error' => 'Error en el servicio de IA (HTTP ' . $httpCode . ')'), 500);
-                return;
-            }
-
-            $respuestaGemini = json_decode($response, true);
-
-            if (!$respuestaGemini || !isset($respuestaGemini['candidates'][0]['content']['parts'][0]['text'])) {
-                Flight::json(array('error' => 'No se pudo interpretar la respuesta de la IA'), 500);
-                return;
-            }
-
-            $textoRespuesta = $respuestaGemini['candidates'][0]['content']['parts'][0]['text'];
+            // Limpiar posibles cercos de código markdown y decodificar el JSON.
+            $textoRespuesta = $resultado['texto'];
             $textoRespuesta = preg_replace('/```json\s*/', '', $textoRespuesta);
             $textoRespuesta = preg_replace('/```\s*/', '', $textoRespuesta);
             $textoRespuesta = trim($textoRespuesta);
 
-            $datosExtraidos = json_decode($textoRespuesta, true);
+            $datosExtraidos = json_decode($textoRespuesta, true, 512, JSON_BIGINT_AS_STRING);
 
             if (!$datosExtraidos) {
                 Flight::json(array(
@@ -1287,32 +1283,41 @@ class PagosRecibidos
                 return;
             }
 
-            $stmtContador = $db->prepare("UPDATE ia_configuracion SET valor = valor + 1, fecha_actualizacion = NOW() WHERE clave = 'mensajes_generados_hoy'");
+            // Registrar uso: contador de mensajes y acumulado de tokens consumidos.
+            $stmtContador = $db->prepare("UPDATE ia_configuracion SET valor = valor + 1, fecha_actualizacion = NOW() WHERE clave = 'mensajes_generados_hoy' AND id_tenant = :id_tenant");
+            $stmtContador->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtContador->execute();
 
-            // Leer tokens consumidos de la respuesta de Gemini
-            $tokensInput = 0;
-            $tokensOutput = 0;
-            $tokensTotal = 0;
-            if (isset($respuestaGemini['usageMetadata'])) {
-                $tokensInput = isset($respuestaGemini['usageMetadata']['promptTokenCount']) ? intval($respuestaGemini['usageMetadata']['promptTokenCount']) : 0;
-                $tokensOutput = isset($respuestaGemini['usageMetadata']['candidatesTokenCount']) ? intval($respuestaGemini['usageMetadata']['candidatesTokenCount']) : 0;
-                $tokensTotal = $tokensInput + $tokensOutput;
+            $tokensInput = $resultado['tokens']['input'];
+            $tokensOutput = $resultado['tokens']['output'];
+            $tokensTotal = $resultado['tokens']['total'];
+
+            if ($tokensTotal > 0) {
+                $stmtTokens = $db->prepare("UPDATE ia_configuracion SET valor = valor + :tokens, fecha_actualizacion = NOW() WHERE clave = 'tokens_consumidos_hoy' AND id_tenant = :id_tenant");
+                $stmtTokens->bindParam(':tokens', $tokensTotal);
+                $stmtTokens->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                $stmtTokens->execute();
             }
 
-            // Acumular tokens consumidos
-            if ($tokensTotal > 0) {
-                $stmtTokens = $db->prepare("UPDATE ia_configuracion SET valor = valor + :tokens, fecha_actualizacion = NOW() WHERE clave = 'tokens_consumidos_hoy'");
-                $stmtTokens->bindParam(':tokens', $tokensTotal);
-                $stmtTokens->execute();
+            // El monto se normaliza en el backend a partir del texto literal del
+            // comprobante (formato colombiano, sin centavos), no del cálculo de la IA.
+            $montoTexto = isset($datosExtraidos['monto_texto']) ? $datosExtraidos['monto_texto'] : null;
+            $valorNormalizado = self::normalizarMontoColombiano($montoTexto);
+
+            // Compatibilidad: si la IA no devolvió monto_texto usable, intentar con un
+            // posible campo 'valor' (respuestas de versiones anteriores del prompt).
+            if ($valorNormalizado === null && isset($datosExtraidos['valor'])) {
+                $valorNormalizado = self::normalizarMontoColombiano($datosExtraidos['valor']);
             }
 
             Flight::json(array(
                 'success' => true,
+                'proveedor' => $resultado['proveedor'],
                 'datos' => array(
-                    'valor' => isset($datosExtraidos['valor']) ? intval($datosExtraidos['valor']) : null,
-                    'referencia' => isset($datosExtraidos['referencia']) ? trim($datosExtraidos['referencia']) : null,
-                    'fecha' => isset($datosExtraidos['fecha']) ? $datosExtraidos['fecha'] : null
+                    'valor' => $valorNormalizado,
+                    'referencia' => isset($datosExtraidos['referencia']) && $datosExtraidos['referencia'] !== null ? trim((string) $datosExtraidos['referencia']) : null,
+                    'fecha' => isset($datosExtraidos['fecha']) ? $datosExtraidos['fecha'] : null,
+                    'banco' => isset($datosExtraidos['banco']) ? trim($datosExtraidos['banco']) : null
                 ),
                 'tokens' => array(
                     'input' => $tokensInput,
@@ -1324,6 +1329,48 @@ class PagosRecibidos
             error_log("Error en analizarComprobante: " . $e->getMessage());
             Flight::json(array('error' => 'Error interno al procesar el comprobante: ' . $e->getMessage()), 500);
         }
+    }
+
+    /**
+     * Normaliza un monto en formato colombiano a un entero de pesos.
+     * Convención colombiana: el PUNTO es separador de miles y la COMA es separador
+     * de decimales. En Colombia no se manejan centavos, así que todo lo que aparezca
+     * después de la coma (los centavos) se descarta.
+     *
+     * Ejemplos:
+     *   "35.000,00"   -> 35000
+     *   "$ 35.000,00" -> 35000
+     *   "1.200.000"   -> 1200000
+     *   "35000"       -> 35000
+     *
+     * @param mixed $texto Monto tal como viene del comprobante (string, int o null)
+     * @return int|null   Entero de pesos, o null si no hay dígitos válidos
+     */
+    private static function normalizarMontoColombiano($texto)
+    {
+        if ($texto === null) {
+            return null;
+        }
+
+        // Dejar solo dígitos, puntos y comas (quita '$', espacios, letras, etc.)
+        $limpio = preg_replace('/[^0-9.,]/', '', (string)$texto);
+        if ($limpio === '') {
+            return null;
+        }
+
+        // Si hay coma (separador decimal), descartar los centavos: cortar en la primera coma.
+        $posComa = strpos($limpio, ',');
+        if ($posComa !== false) {
+            $limpio = substr($limpio, 0, $posComa);
+        }
+
+        // Quitar los puntos de miles y cualquier residuo no numérico.
+        $soloDigitos = preg_replace('/[^0-9]/', '', $limpio);
+        if ($soloDigitos === '') {
+            return null;
+        }
+
+        return intval($soloDigitos);
     }
 
     /**
@@ -1404,12 +1451,12 @@ class PagosRecibidos
 
                 $stmtPago = $db->prepare("
                     INSERT INTO pagos_recibidos 
-                    (fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, 
+                    (id, id_tenant, fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, 
                      valor_recibido, observaciones, referencia_bancaria, 
                      fecha_registro, id_usuario_registro, 
                      fecha_contabilizacion, id_usuario_contable, id_documento_persona) 
                     VALUES 
-                    (:fecha, :id_estudiante, NULL, :id_acudiente, :id_tipo_pago, 
+                    (:id, :id_tenant, :fecha, :id_estudiante, NULL, :id_acudiente, :id_tipo_pago, 
                      :valor_recibido, :observaciones, :referencia_bancaria, 
                      :fecha_registro, :id_usuario_registro, 
                      NULL, NULL, :id_documento_persona)
@@ -1417,9 +1464,9 @@ class PagosRecibidos
 
                 $stmtCuenta = $db->prepare("
                     INSERT INTO cuenta_pagada 
-                    (id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) 
+                    (id, id_tenant, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) 
                     VALUES 
-                    (:id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)
+                    (:id, :id_tenant, :id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)
                 ");
 
                 // Cargar reportes de pago pendientes UNA sola vez para asociar automáticamente
@@ -1427,8 +1474,10 @@ class PagosRecibidos
                     SELECT id, id_estudiante, id_tipo_pago, valor 
                     FROM reportes_pago 
                     WHERE estado = 'pendiente' 
+                    AND id_tenant = :id_tenant
                     ORDER BY fecha_registro ASC
                 ");
+                $stmtReportesPendientes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmtReportesPendientes->execute();
                 $reportesPendientes = $stmtReportesPendientes->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1456,6 +1505,9 @@ class PagosRecibidos
                     $referencia_bancaria = !empty($pago['referencia_bancaria']) ? $pago['referencia_bancaria'] : '';
                     $id_documento_persona = !empty($pago['id_documento_persona']) ? $pago['id_documento_persona'] : null;
 
+                    $idPagoNew = Uuid::generar();
+                    $stmtPago->bindValue(':id', $idPagoNew);
+                    $stmtPago->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtPago->bindParam(':fecha', $pago['fecha']);
                     $stmtPago->bindParam(':id_estudiante', $pago['id_estudiante']);
                     $stmtPago->bindParam(':id_acudiente', $id_acudiente);
@@ -1468,7 +1520,7 @@ class PagosRecibidos
                     $stmtPago->bindParam(':id_documento_persona', $id_documento_persona);
 
                     if ($stmtPago->execute()) {
-                        $idPago = $db->lastInsertId();
+                        $idPago = $idPagoNew;
 
                         // Insertar cuentas aplicadas para este pago
                         $cuentasAplicadas = isset($pago['cuentas_aplicadas']) ? $pago['cuentas_aplicadas'] : array();
@@ -1479,6 +1531,9 @@ class PagosRecibidos
                                 continue;
                             }
 
+                            $idCuentaPagadaNew = Uuid::generar();
+                            $stmtCuenta->bindValue(':id', $idCuentaPagadaNew);
+                            $stmtCuenta->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                             $stmtCuenta->bindParam(':id_cuenta_por_cobrar', $cuenta['id_cuenta_por_cobrar']);
                             $stmtCuenta->bindParam(':id_pago_recibido', $idPago);
                             $stmtCuenta->bindParam(':valor_aplicado', $cuenta['valor_aplicado']);
@@ -1551,6 +1606,153 @@ class PagosRecibidos
         } catch (Exception $e) {
             error_log("Error en registrarMasivo: " . $e->getMessage());
             Flight::json(array('error' => 'Error al registrar los pagos: ' . $e->getMessage()), 500);
+        }
+    }
+
+    /**
+     * Verifica, antes de registrar un pago, si podría tratarse de un duplicado.
+     * Solo lectura: no modifica datos. Ambos chequeos son independientes y se
+     * ejecutan únicamente si llegan los datos necesarios para cada uno.
+     *
+     * POST /pagos-recibidos/verificar-duplicado
+     *
+     * Body (JSON): {
+     *   id_estudiante, id_tipo_pago, valor_recibido, fecha,   // para posible_duplicado
+     *   referencia_bancaria                                   // para referencia_existente
+     *   id_pago_excluir (opcional)  // id a excluir (útil al editar, para no compararse consigo mismo)
+     * }
+     *
+     * Respuesta: {
+     *   referencia_existente: [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_estudiante}, ... ],
+     *   total_referencia:     suma de valor_recibido de referencia_existente,
+     *   posible_duplicado:    [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_estudiante}, ... ]
+     * }
+     *
+     * Nota: ambos listados excluyen pagos anulados y filtran por tenant.
+     */
+    public static function verificarDuplicado()
+    {
+        $userData = JWTService::requerirAutenticacion();
+
+        try {
+            $db = Flight::db();
+
+            $id_estudiante = isset(Flight::request()->data['id_estudiante']) ? Flight::request()->data['id_estudiante'] : null;
+            $id_tipo_pago = isset(Flight::request()->data['id_tipo_pago']) ? Flight::request()->data['id_tipo_pago'] : null;
+            $valor_recibido = isset(Flight::request()->data['valor_recibido']) ? Flight::request()->data['valor_recibido'] : null;
+            $fecha = isset(Flight::request()->data['fecha']) ? Flight::request()->data['fecha'] : null;
+            $referencia_bancaria = isset(Flight::request()->data['referencia_bancaria']) ? trim(Flight::request()->data['referencia_bancaria']) : '';
+            // Al editar un pago existente, se envía su id para no compararlo contra sí mismo.
+            $id_pago_excluir = isset(Flight::request()->data['id_pago_excluir']) ? Flight::request()->data['id_pago_excluir'] : null;
+
+            $referenciaExistente = array();
+            $posibleDuplicado = array();
+
+            // Chequeo 1: la referencia bancaria ya está registrada en otro pago activo.
+            //            Solo aplica si viene una referencia no vacía.
+            if ($referencia_bancaria !== '') {
+                $sqlRef = "
+                    SELECT 
+                        pr.id, 
+                        pr.fecha, 
+                        pr.valor_recibido, 
+                        pr.id_tipo_pago,
+                        tp.nombre AS tipo_pago,
+                        pr.referencia_bancaria,
+                        CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_estudiante
+                    FROM pagos_recibidos pr
+                    LEFT JOIN estudiantes e ON pr.id_estudiante = e.id
+                    LEFT JOIN personas pe ON e.id_persona = pe.id
+                    LEFT JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id
+                    WHERE pr.referencia_bancaria = :referencia_bancaria
+                      AND (pr.anulado = 0 OR pr.anulado IS NULL)
+                      AND pr.id_tenant = :id_tenant
+                ";
+                if ($id_pago_excluir !== null) {
+                    $sqlRef .= " AND pr.id <> :id_pago_excluir ";
+                }
+                $sqlRef .= " ORDER BY pr.fecha DESC, pr.fecha_registro DESC";
+
+                $stmtRef = $db->prepare($sqlRef);
+                $stmtRef->bindParam(':referencia_bancaria', $referencia_bancaria);
+                $stmtRef->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                if ($id_pago_excluir !== null) {
+                    $stmtRef->bindParam(':id_pago_excluir', $id_pago_excluir);
+                }
+                $stmtRef->execute();
+                $referenciaExistente = $stmtRef->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($referenciaExistente as &$row) {
+                    $row['nombre_estudiante'] = trim(preg_replace('/\s+/', ' ', $row['nombre_estudiante']));
+                }
+                unset($row);
+            }
+
+            // Chequeo 2: posible pago duplicado (mismo estudiante + tipo + valor + fecha).
+            //            Solo aplica si llegan los cuatro datos.
+            if ($id_estudiante !== null && $id_tipo_pago !== null && $valor_recibido !== null && $fecha !== null) {
+                $sqlDup = "
+                    SELECT 
+                        pr.id, 
+                        pr.fecha, 
+                        pr.valor_recibido, 
+                        pr.id_tipo_pago,
+                        tp.nombre AS tipo_pago,
+                        pr.referencia_bancaria,
+                        CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_estudiante
+                    FROM pagos_recibidos pr
+                    LEFT JOIN estudiantes e ON pr.id_estudiante = e.id
+                    LEFT JOIN personas pe ON e.id_persona = pe.id
+                    LEFT JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id
+                    WHERE pr.id_estudiante = :id_estudiante
+                      AND pr.id_tipo_pago = :id_tipo_pago
+                      AND pr.valor_recibido = :valor_recibido
+                      AND DATE(pr.fecha) = DATE(:fecha)
+                      AND (pr.anulado = 0 OR pr.anulado IS NULL)
+                      AND pr.id_tenant = :id_tenant
+                ";
+                if ($id_pago_excluir !== null) {
+                    $sqlDup .= " AND pr.id <> :id_pago_excluir ";
+                }
+                $sqlDup .= " ORDER BY pr.fecha_registro DESC";
+
+                $stmtDup = $db->prepare($sqlDup);
+                $stmtDup->bindParam(':id_estudiante', $id_estudiante);
+                $stmtDup->bindParam(':id_tipo_pago', $id_tipo_pago);
+                $stmtDup->bindParam(':valor_recibido', $valor_recibido);
+                $stmtDup->bindParam(':fecha', $fecha);
+                $stmtDup->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                if ($id_pago_excluir !== null) {
+                    $stmtDup->bindParam(':id_pago_excluir', $id_pago_excluir);
+                }
+                $stmtDup->execute();
+                $posibleDuplicado = $stmtDup->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($posibleDuplicado as &$rowD) {
+                    $rowD['nombre_estudiante'] = trim(preg_replace('/\s+/', ' ', $rowD['nombre_estudiante']));
+                }
+                unset($rowD);
+            }
+
+            // Total ya registrado con esa referencia. Sirve para validar que la
+            // suma de pagos de un mismo comprobante no exceda su valor (un
+            // comprobante puede repartirse entre varios estudiantes).
+            // Se calcula sobre el resultado ya consultado: no agrega consultas.
+            $totalReferencia = 0;
+            foreach ($referenciaExistente as $rowT) {
+                $totalReferencia += floatval($rowT['valor_recibido']);
+            }
+
+            Flight::json(array(
+                'referencia_existente' => $referenciaExistente,
+                'total_referencia' => $totalReferencia,
+                'posible_duplicado' => $posibleDuplicado
+            ));
+        } catch (Exception $e) {
+            error_log("Error en verificarDuplicado: " . $e->getMessage());
+            Flight::json(array('error' => 'Error al verificar duplicados: ' . $e->getMessage()), 500);
         }
     }
 }

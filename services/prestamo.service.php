@@ -67,9 +67,12 @@ class Prestamo
                     usuarios uan on p.id_usuario_anulacion = uan.id
                 left join 
                     personas p_uan on uan.id_persona = p_uan.id
+                where 
+                    p.id_tenant = :id_tenant
                 order by 
                     p.fecha_prestamo desc, p.id desc
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -151,8 +154,10 @@ class Prestamo
                     personas p_uan on uan.id_persona = p_uan.id
                 where 
                     p.id = :id
+                    and p.id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -200,10 +205,12 @@ class Prestamo
                     estados_prestamo ep on p.id_estado = ep.id
                 where 
                     p.id_colaborador = :id_colaborador
+                    and p.id_tenant = :id_tenant
                 order by 
                     p.fecha_prestamo desc, p.id desc
             ");
             $sentence->bindParam(':id_colaborador', $id_colaborador);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -239,16 +246,19 @@ class Prestamo
 
             $sentence = $db->prepare("
                 insert into prestamos(
-                    id_colaborador, id_tipo_prestamo, fecha_prestamo, fecha_inicio_cobro,
+                    id, id_tenant, id_colaborador, id_tipo_prestamo, fecha_prestamo, fecha_inicio_cobro,
                     monto_prestado, numero_cuotas, monto_cuota, tasa_interes, monto_total,
                     id_tipo_descuento, id_estado, observaciones, fecha_registro, id_usuario_registro
                 ) values (
-                    :id_colaborador, :id_tipo_prestamo, :fecha_prestamo, :fecha_inicio_cobro,
+                    :id, :id_tenant, :id_colaborador, :id_tipo_prestamo, :fecha_prestamo, :fecha_inicio_cobro,
                     :monto_prestado, :numero_cuotas, :monto_cuota, :tasa_interes, :monto_total,
                     :id_tipo_descuento, :id_estado, :observaciones, :fecha_registro, :id_usuario_registro
                 )
             ");
 
+            $id = Uuid::generar();
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_colaborador', $id_colaborador);
             $sentence->bindParam(':id_tipo_prestamo', $id_tipo_prestamo);
             $sentence->bindParam(':fecha_prestamo', $fecha_prestamo);
@@ -266,7 +276,6 @@ class Prestamo
 
             $sentence->execute();
 
-            $id = $db->lastInsertId();
             Flight::json(array('id' => $id));
         } catch (PDOException $e) {
             error_log("Error PDO en new prestamo: " . $e->getMessage());
@@ -311,6 +320,7 @@ class Prestamo
                     id_estado = :id_estado,
                     observaciones = :observaciones
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
@@ -326,6 +336,7 @@ class Prestamo
             $sentence->bindParam(':id_tipo_descuento', $id_tipo_descuento);
             $sentence->bindParam(':id_estado', $id_estado);
             $sentence->bindParam(':observaciones', $observaciones);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             self::getById($id);
@@ -355,23 +366,23 @@ class Prestamo
                 // 1. Primero eliminar los pagos relacionados con las cuotas del préstamo
                 $stmtPagos = $db->prepare("
                 DELETE FROM prestamos_pagos 
-                WHERE id_prestamo = :id
+                WHERE id_prestamo = :id AND id_tenant = :id_tenant
             ");
-                $stmtPagos->execute(['id' => $id]);
+                $stmtPagos->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
 
                 // 2. Luego eliminar las cuotas del préstamo
                 $stmtCuotas = $db->prepare("
                 DELETE FROM prestamos_cuotas 
-                WHERE id_prestamo = :id
+                WHERE id_prestamo = :id AND id_tenant = :id_tenant
             ");
-                $stmtCuotas->execute(['id' => $id]);
+                $stmtCuotas->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
 
                 // 3. Finalmente eliminar el préstamo
                 $stmtPrestamo = $db->prepare("
                 DELETE FROM prestamos 
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
-                $stmtPrestamo->execute(['id' => $id]);
+                $stmtPrestamo->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
 
                 // Confirmar transacción
                 $db->commit();
@@ -408,11 +419,13 @@ class Prestamo
                 set fecha_aprobacion = :fecha_aprobacion, 
                     id_usuario_aprobacion = :id_usuario_aprobacion
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha_aprobacion', $fecha_aprobacion);
             $sentence->bindParam(':id_usuario_aprobacion', $id_usuario_aprobacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getById($id);
@@ -443,11 +456,13 @@ class Prestamo
                     id_usuario_anulacion = :id_usuario_anulacion,
                     motivo_anulacion = :motivo_anulacion
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':id_usuario_anulacion', $id_usuario_anulacion);
             $sentence->bindParam(':motivo_anulacion', $motivo_anulacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getById($id);

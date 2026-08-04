@@ -33,6 +33,7 @@ Flight::route('GET /documentos-personas/vencimientos/@dias', [DocumentosPersonas
 Flight::route('POST /documentos-personas/upload', [DocumentosPersonas::class, 'upload']);
 Flight::route('PUT /documentos-personas', [DocumentosPersonas::class, 'update']);
 Flight::route('DELETE /documentos-personas', [DocumentosPersonas::class, 'delete']);
+Flight::route('GET /documentos-personas/download-token/@id', [DocumentosPersonas::class, 'generarTokenDescarga']);
 Flight::route('GET /documentos-personas/download/@id', [DocumentosPersonas::class, 'download']);
 
 // FIRMA DIGITAL

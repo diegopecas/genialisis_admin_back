@@ -2,6 +2,7 @@
 
 // COLABORADORES
 Flight::route('GET /colaboradores', [Colaboradores::class, 'getAll']);
+Flight::route('GET /colaboradores-filtros', [Colaboradores::class, 'getPorFiltros']);
 Flight::route('GET /colaboradores/@id', [Colaboradores::class, 'getById']);
 Flight::route('POST /colaboradores', [Colaboradores::class, 'new']);
 Flight::route('PUT /colaboradores', [Colaboradores::class, 'replace']);
@@ -13,14 +14,8 @@ Flight::route('POST /colaboradores/verificar-duplicados', [Colaboradores::class,
 Flight::route('GET /roles-colaborador', [RolesColaborador::class, 'getAll']);
 
 // CASAS COLABORADORES
-Flight::route('GET /casas-colaboradores', [CasasColaboradores::class, 'getAll']);
-Flight::route('POST /casas-colaboradores-mas-puntos', [CasasColaboradores::class, 'sumarPuntosEntregar']);
-Flight::route('POST /casas-colaboradores-menos-puntos', [CasasColaboradores::class, 'restarPuntosQuitar']);
 
 // PUNTOS CASAS COLABORADORES
-Flight::route('GET /puntos-casas-colaboradores', [PuntosCasasColaboradores::class, 'getAll']);
-Flight::route('POST /puntos-casas-colaboradores', [PuntosCasasColaboradores::class, 'new']);
-Flight::route('GET /puntos-casas-colaboradores/@id', [PuntosCasasColaboradores::class, 'getAllByCasa']);
 
 // ACTIVIDADES COLABORADORES
 Flight::route('GET /actividades-colaboradores/pendientes-aprobar', [ActividadesColaboradores::class, 'getPendientesAprobar']);
@@ -84,6 +79,7 @@ Flight::route('DELETE /tipos-contrato', [TiposContrato::class, 'delete']);
 // CALENDARIO DE COLABORADORES
 Flight::route('GET /actividades-colaboradores-calendario', [ActividadesColaboradores::class, 'getActividadesPorMes']);
 Flight::route('GET /colaboradores-calendario', [ActividadesColaboradores::class, 'getColaboradoresParaCalendario']);
+Flight::route('GET /grupos-calendario', [ActividadesColaboradores::class, 'getGruposParaCalendario']);
 
 // HORARIOS COLABORADORES
 Flight::route('GET /horarios-colaboradores/@id_colaborador', [HorariosColaboradores::class, 'getByColaborador']);

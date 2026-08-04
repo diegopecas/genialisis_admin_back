@@ -23,7 +23,9 @@ class ActividadesColaboradores
             INNER JOIN usuarios ur ON ac.id_usuario_registro = ur.id
             LEFT JOIN usuarios ua ON ac.id_usuario_aprobacion = ua.id
             LEFT JOIN usuarios uc ON ac.id_usuario_contabilizacion = uc.id
+            WHERE ac.id_tenant = :id_tenant
             ORDER BY ac.fecha_registro DESC");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -44,6 +46,7 @@ class ActividadesColaboradores
             tac.valor_hora,
             ca.nombre as nombre_categoria,
             ca.id as id_categoria,
+            ca.codigo as categoria_codigo,
             ea.nombre as nombre_estado,
             ea.color as color_estado,
             CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
@@ -60,8 +63,9 @@ class ActividadesColaboradores
             INNER JOIN usuarios ur ON ac.id_usuario_registro = ur.id
             LEFT JOIN usuarios ua ON ac.id_usuario_aprobacion = ua.id
             LEFT JOIN usuarios uc ON ac.id_usuario_contabilizacion = uc.id
-            WHERE ac.id = :id");
+            WHERE ac.id = :id AND ac.id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -90,8 +94,10 @@ class ActividadesColaboradores
             INNER JOIN categorias_actividades ca ON tac.id_categoria = ca.id
             INNER JOIN estados_actividades ea ON ac.id_estado = ea.id
             WHERE ac.id_colaborador = :id_colaborador
+            AND ac.id_tenant = :id_tenant
             ORDER BY ac.fecha_registro DESC");
         $sentence->bindParam(':id_colaborador', $id_colaborador);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -106,10 +112,12 @@ class ActividadesColaboradores
             INNER JOIN tipos_actividades_colaboradores tac ON ac.id_tipo_actividad = tac.id
             INNER JOIN categorias_actividades ca ON tac.id_categoria = ca.id
             WHERE ac.id_colaborador = :id_colaborador 
-            AND ca.id = 1
+            AND ca.codigo = 'PERMISO'
             AND ac.id_estado = 2
+            AND ac.id_tenant = :id_tenant
             AND ac.id NOT IN (SELECT id_actividad_colaborador FROM contabilizaciones_detalle WHERE id_actividad_colaborador IS NOT NULL)");
         $sentencePermisos->bindParam(':id_colaborador', $id_colaborador);
+        $sentencePermisos->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentencePermisos->execute();
         $permisos = $sentencePermisos->fetch();
 
@@ -119,10 +127,12 @@ class ActividadesColaboradores
             INNER JOIN tipos_actividades_colaboradores tac ON ac.id_tipo_actividad = tac.id
             INNER JOIN categorias_actividades ca ON tac.id_categoria = ca.id
             WHERE ac.id_colaborador = :id_colaborador 
-            AND ca.id = 2
+            AND ca.codigo = 'HORA_ADICIONAL'
             AND ac.id_estado = 2
+            AND ac.id_tenant = :id_tenant
             AND ac.id NOT IN (SELECT id_actividad_colaborador FROM contabilizaciones_detalle WHERE id_actividad_colaborador IS NOT NULL)");
         $sentenceHoras->bindParam(':id_colaborador', $id_colaborador);
+        $sentenceHoras->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentenceHoras->execute();
         $horas = $sentenceHoras->fetch();
 
@@ -158,11 +168,14 @@ class ActividadesColaboradores
             $id_estado = 1;
 
             $sentence = $db->prepare("INSERT INTO actividades_colaboradores 
-                (id_colaborador, id_tipo_actividad, id_estado, fecha_hora_inicio, fecha_hora_fin, 
+                (id, id_tenant, id_colaborador, id_tipo_actividad, id_estado, fecha_hora_inicio, fecha_hora_fin, 
                 minutos_totales, observaciones, ruta_documento, id_usuario_registro) 
-                VALUES (:id_colaborador, :id_tipo_actividad, :id_estado, :fecha_hora_inicio, 
+                VALUES (:id, :id_tenant, :id_colaborador, :id_tipo_actividad, :id_estado, :fecha_hora_inicio, 
                 :fecha_hora_fin, :minutos_totales, :observaciones, :ruta_documento, :id_usuario_registro)");
 
+            $idAct = Uuid::generar();
+            $sentence->bindValue(':id', $idAct);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_colaborador', $id_colaborador);
             $sentence->bindParam(':id_tipo_actividad', $id_tipo_actividad);
             $sentence->bindParam(':id_estado', $id_estado);
@@ -174,7 +187,7 @@ class ActividadesColaboradores
             $sentence->bindParam(':id_usuario_registro', $id_usuario_registro);
             $sentence->execute();
 
-            $id = $db->lastInsertId();
+            $id = $idAct;
             Flight::json(array('id' => $id, 'message' => 'Actividad creada correctamente'));
         } catch (Exception $e) {
             error_log("Error en ActividadesColaboradores::new: " . $e->getMessage());
@@ -189,8 +202,9 @@ class ActividadesColaboradores
             $id = Flight::request()->data['id'];
 
             $check = $db->prepare("SELECT COUNT(*) as total FROM contabilizaciones_detalle 
-                WHERE id_actividad_colaborador = :id");
+                WHERE id_actividad_colaborador = :id AND id_tenant = :id_tenant");
             $check->bindParam(':id', $id);
+            $check->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $check->execute();
             $result = $check->fetch();
 
@@ -199,8 +213,9 @@ class ActividadesColaboradores
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM actividades_colaboradores WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM actividades_colaboradores WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id, 'message' => 'Actividad eliminada correctamente'));
@@ -218,6 +233,7 @@ class ActividadesColaboradores
             tac.valor_hora,
             ca.nombre as nombre_categoria,
             ca.id as id_categoria,
+            ca.codigo as categoria_codigo,
             ea.nombre as nombre_estado,
             ea.color as color_estado,
             CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
@@ -233,7 +249,9 @@ class ActividadesColaboradores
             INNER JOIN usuarios ur ON ac.id_usuario_registro = ur.id
             INNER JOIN personas pr ON ur.id_persona = pr.id
             WHERE ac.id_estado = 1
+            AND ac.id_tenant = :id_tenant
             ORDER BY ac.fecha_registro ASC");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -266,8 +284,9 @@ class ActividadesColaboradores
 
             foreach ($ids as $id) {
                 try {
-                    $check = $db->prepare("SELECT id_estado FROM actividades_colaboradores WHERE id = :id");
+                    $check = $db->prepare("SELECT id_estado FROM actividades_colaboradores WHERE id = :id AND id_tenant = :id_tenant");
                     $check->bindParam(':id', $id);
+                    $check->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $check->execute();
                     $actividad = $check->fetch();
 
@@ -286,12 +305,13 @@ class ActividadesColaboradores
                         id_usuario_aprobacion = :id_usuario_aprobacion,
                         fecha_aprobacion = :fecha_aprobacion,
                         observaciones_aprobacion = :observaciones_aprobacion
-                        WHERE id = :id");
+                        WHERE id = :id AND id_tenant = :id_tenant");
 
                     $sentence->bindParam(':id_usuario_aprobacion', $id_usuario_aprobacion);
                     $sentence->bindParam(':fecha_aprobacion', $fecha_aprobacion);
                     $sentence->bindParam(':observaciones_aprobacion', $observaciones_aprobacion);
                     $sentence->bindParam(':id', $id);
+                    $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $sentence->execute();
 
                     $aprobados++;
@@ -323,6 +343,7 @@ class ActividadesColaboradores
             tac.valor_hora,
             ca.nombre as nombre_categoria,
             ca.id as id_categoria,
+            ca.codigo as categoria_codigo,
             ca.es_cruzable,
             ea.nombre as nombre_estado,
             ea.color as color_estado,
@@ -345,6 +366,7 @@ class ActividadesColaboradores
             INNER JOIN colaboradores c ON ac.id_colaborador = c.id
             INNER JOIN personas p ON c.id_persona = p.id
             WHERE (ac.id_estado = 2 OR ac.id_estado = 5)
+            AND ac.id_tenant = :id_tenant
             AND ca.es_cruzable = 1
             AND (ac.minutos_totales - COALESCE((
                 SELECT SUM(cd.minutos_aplicados) 
@@ -352,6 +374,7 @@ class ActividadesColaboradores
                 WHERE cd.id_actividad_colaborador = ac.id
             ), 0)) > 0
             ORDER BY ac.id_colaborador, ca.id, ac.fecha_aprobacion ASC");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -372,19 +395,19 @@ class ActividadesColaboradores
             CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
                    IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) as nombre_colaborador,
             SUM(CASE 
-                WHEN ca.id = 1 THEN (ac.minutos_totales - COALESCE(aplicados.total, 0))
+                WHEN ca.codigo = 'PERMISO' THEN (ac.minutos_totales - COALESCE(aplicados.total, 0))
                 ELSE 0 
             END) as minutos_permisos,
             SUM(CASE 
-                WHEN ca.id = 2 THEN (ac.minutos_totales - COALESCE(aplicados.total, 0))
+                WHEN ca.codigo = 'HORA_ADICIONAL' THEN (ac.minutos_totales - COALESCE(aplicados.total, 0))
                 ELSE 0 
             END) as minutos_horas,
             SUM(CASE 
-                WHEN ca.id = 2 THEN ((ac.minutos_totales - COALESCE(aplicados.total, 0)) / 60.0 * tac.valor_hora)
+                WHEN ca.codigo = 'HORA_ADICIONAL' THEN ((ac.minutos_totales - COALESCE(aplicados.total, 0)) / 60.0 * tac.valor_hora)
                 ELSE 0 
             END) as valor_horas,
-            COUNT(DISTINCT CASE WHEN ca.id = 1 THEN ac.id END) as cantidad_permisos,
-            COUNT(DISTINCT CASE WHEN ca.id = 2 THEN ac.id END) as cantidad_horas
+            COUNT(DISTINCT CASE WHEN ca.codigo = 'PERMISO' THEN ac.id END) as cantidad_permisos,
+            COUNT(DISTINCT CASE WHEN ca.codigo = 'HORA_ADICIONAL' THEN ac.id END) as cantidad_horas
             FROM colaboradores c
             INNER JOIN personas p ON c.id_persona = p.id
             INNER JOIN actividades_colaboradores ac ON ac.id_colaborador = c.id
@@ -397,10 +420,12 @@ class ActividadesColaboradores
             ) aplicados ON aplicados.id_actividad_colaborador = ac.id
             WHERE ac.id_estado IN (2, 5)
             AND ca.es_cruzable = 1
+            AND c.id_tenant = :id_tenant
             AND c.activo = 1
             GROUP BY c.id, nombre_colaborador
             HAVING minutos_permisos > 0 AND minutos_horas > 0
             ORDER BY nombre_colaborador");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -460,9 +485,10 @@ class ActividadesColaboradores
     LEFT JOIN tipos_contabilizacion tc ON c.id_tipo_contabilizacion = tc.id
     
     WHERE 1=1
-        AND col.activo = 1";
+        AND col.activo = 1
+        AND ac.id_tenant = :id_tenant";
 
-        $params = array();
+        $params = array(':id_tenant' => TenantContext::id());
 
         if ($id_colaborador && $id_colaborador !== '') {
             $sql .= " AND col.id = :id_colaborador";
@@ -527,7 +553,9 @@ class ActividadesColaboradores
         FROM colaboradores c
         INNER JOIN personas p ON c.id_persona = p.id
         WHERE c.activo = 1
+        AND c.id_tenant = :id_tenant
         ORDER BY p.primer_apellido, p.primer_nombre");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -577,9 +605,7 @@ class ActividadesColaboradores
         
         CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
                IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) as nombre_colaborador,
-        c.sobrenombre as sobrenombre_colaborador,
-        
-        d.id as id_docente
+        c.sobrenombre as sobrenombre_colaborador
         
         FROM actividades_colaboradores ac
         INNER JOIN tipos_actividades_colaboradores tac ON ac.id_tipo_actividad = tac.id
@@ -587,76 +613,22 @@ class ActividadesColaboradores
         INNER JOIN estados_actividades ea ON ac.id_estado = ea.id
         INNER JOIN colaboradores c ON ac.id_colaborador = c.id
         INNER JOIN personas p ON c.id_persona = p.id
-        LEFT JOIN docentes d ON d.id_colaborador = c.id
         
         WHERE DATE(ac.fecha_hora_inicio) BETWEEN :fecha_inicio AND :fecha_fin
+        AND ac.id_tenant = :id_tenant
         AND c.activo = 1
         
         ORDER BY ac.fecha_hora_inicio ASC, nombre_colaborador ASC");
 
         $sentence->bindParam(':fecha_inicio', $fecha_inicio);
         $sentence->bindParam(':fecha_fin', $fecha_fin);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
         foreach ($response as &$row) {
             if (isset($row['nombre_colaborador'])) {
                 $row['nombre_colaborador'] = trim(preg_replace('/\s+/', ' ', $row['nombre_colaborador']));
-            }
-        }
-
-        Flight::json($response);
-    }
-
-    public static function getHorariosDocentes()
-    {
-        $db = Flight::db();
-
-        $sentence = $db->prepare("SELECT 
-        h.id,
-        h.id_grupo,
-        h.id_area_academica,
-        h.id_dia_semana,
-        h.hora_inicial,
-        h.hora_final,
-        h.total_minutos,
-        
-        d.id as id_docente,
-        d.id_colaborador,
-        CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-               IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) as nombre_docente,
-        c.sobrenombre as sobrenombre_docente,
-        
-        aa.nombre as nombre_area_academica,
-        aa.icono as icono_area,
-        
-        g.nombre as nombre_grupo,
-        g.color as color_grupo,
-        
-        ds.nombre as nombre_dia_semana,
-        ds.hora_entrada,
-        ds.hora_salida
-        
-        FROM horarios h
-        INNER JOIN area_academica_x_grupo aaxg ON aaxg.id_area_academica = h.id_area_academica 
-            AND aaxg.id_grupo = h.id_grupo
-        INNER JOIN docentes d ON aaxg.id_docente = d.id
-        INNER JOIN colaboradores c ON d.id_colaborador = c.id
-        INNER JOIN personas p ON c.id_persona = p.id
-        INNER JOIN areas_academicas aa ON h.id_area_academica = aa.id
-        INNER JOIN grupos g ON h.id_grupo = g.id
-        INNER JOIN dias_semana ds ON h.id_dia_semana = ds.id
-        
-        WHERE c.activo = 1
-        
-        ORDER BY c.id, h.id_dia_semana, h.hora_inicial");
-
-        $sentence->execute();
-        $response = $sentence->fetchAll();
-
-        foreach ($response as &$row) {
-            if (isset($row['nombre_docente'])) {
-                $row['nombre_docente'] = trim(preg_replace('/\s+/', ' ', $row['nombre_docente']));
             }
         }
 
@@ -671,17 +643,17 @@ class ActividadesColaboradores
         c.id,
         CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
                IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) as nombre_completo,
-        c.sobrenombre,
-        d.id as id_docente
+        c.sobrenombre
         
         FROM colaboradores c
         INNER JOIN personas p ON c.id_persona = p.id
-        LEFT JOIN docentes d ON d.id_colaborador = c.id
         
         WHERE c.activo = 1
+        AND c.id_tenant = :id_tenant
         
         ORDER BY p.primer_apellido, p.primer_nombre");
 
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 
@@ -708,8 +680,10 @@ class ActividadesColaboradores
         
         FROM grupos
         
+        WHERE id_tenant = :id_tenant
         ORDER BY orden, nombre");
 
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
 

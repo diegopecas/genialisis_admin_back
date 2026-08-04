@@ -9,8 +9,10 @@ class TiposDocumentos
             SELECT id, codigo, nombre, requiere_vencimiento, dias_alerta_vencimiento, 
                    permite_multiples, descripcion, activo, modificable_acudientes, requiere_firma
             FROM tipos_documentos
+            WHERE id_tenant = :id_tenant
             ORDER BY nombre
         ");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -38,9 +40,11 @@ class TiposDocumentos
             INNER JOIN tipos_personas tp ON tpd.id_tipo_persona = tp.id
             WHERE tp.codigo = :codigo_tipo_persona
               AND td.activo = 1
+              AND td.id_tenant = :id_tenant
             ORDER BY tpd.orden, td.nombre
         ");
         $sentence->bindParam(':codigo_tipo_persona', $codigoTipoPersona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -55,8 +59,10 @@ class TiposDocumentos
                    permite_multiples, descripcion, activo, modificable_acudientes, requiere_firma
             FROM tipos_documentos
             WHERE id = :id
+            AND id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -78,17 +84,20 @@ class TiposDocumentos
         $modificable_acudientes = isset($data['modificable_acudientes']) ? $data['modificable_acudientes'] : 1;
         $activo = isset($data['activo']) ? $data['activo'] : 1;
 
+        $id = Uuid::generar();
         $sentence = $db->prepare("
             INSERT INTO tipos_documentos (
-                codigo, nombre, descripcion, requiere_vencimiento, 
+                id, id_tenant, codigo, nombre, descripcion, requiere_vencimiento, 
                 dias_alerta_vencimiento, permite_multiples, requiere_firma, 
                 modificable_acudientes, activo
             ) VALUES (
-                :codigo, :nombre, :descripcion, :requiere_vencimiento, 
+                :id, :id_tenant, :codigo, :nombre, :descripcion, :requiere_vencimiento, 
                 :dias_alerta_vencimiento, :permite_multiples, :requiere_firma, 
                 :modificable_acudientes, :activo
             )
         ");
+        $sentence->bindValue(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->bindParam(':codigo', $codigo);
         $sentence->bindParam(':nombre', $nombre);
         $sentence->bindParam(':descripcion', $descripcion);
@@ -100,7 +109,6 @@ class TiposDocumentos
         $sentence->bindParam(':activo', $activo);
         $sentence->execute();
 
-        $id = $db->lastInsertId();
         Flight::json(array('id' => $id));
     }
 
@@ -133,6 +141,7 @@ class TiposDocumentos
                 modificable_acudientes = :modificable_acudientes, 
                 activo = :activo
             WHERE id = :id
+            AND id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
         $sentence->bindParam(':codigo', $codigo);
@@ -144,6 +153,7 @@ class TiposDocumentos
         $sentence->bindParam(':requiere_firma', $requiere_firma);
         $sentence->bindParam(':modificable_acudientes', $modificable_acudientes);
         $sentence->bindParam(':activo', $activo);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         self::getById($id);
@@ -154,8 +164,9 @@ class TiposDocumentos
     {
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("DELETE FROM tipos_documentos WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM tipos_documentos WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         self::getById($id);
     }

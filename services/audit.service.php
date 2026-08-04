@@ -315,7 +315,7 @@ class AuditService
         $stmt = self::db()->prepare($sql);
         $stmt->bindValue(':plataforma',      $d['plataforma']);
         $stmt->bindValue(':tenant',          $d['tenant']);
-        $stmt->bindValue(':id_usuario',      $d['id_usuario'], $d['id_usuario'] === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $stmt->bindValue(':id_usuario',      $d['id_usuario'], $d['id_usuario'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $stmt->bindValue(':usuario',         $d['usuario']);
         $stmt->bindValue(':metodo',          $d['metodo']);
         $stmt->bindValue(':ruta',            $d['ruta']);

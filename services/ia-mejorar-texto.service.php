@@ -82,7 +82,8 @@ PROMPT;
 
     private static function obtenerConfiguracion($db)
     {
-        $sentence = $db->prepare("SELECT clave, valor FROM ia_configuracion");
+        $sentence = $db->prepare("SELECT clave, valor FROM ia_configuracion WHERE id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $rows = $sentence->fetchAll(PDO::FETCH_ASSOC);
         $config = [];

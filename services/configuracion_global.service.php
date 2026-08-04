@@ -6,7 +6,9 @@ class ConfiguracionGlobal
         $db = Flight::db();
         $sentence = $db->prepare("SELECT id, clave, valor_texto, valor_numero, valor_fecha, descripcion 
                                   FROM configuracion_global 
+                                  WHERE id_tenant = :id_tenant
                                   ORDER BY clave");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -17,8 +19,10 @@ class ConfiguracionGlobal
         $db = Flight::db();
         $sentence = $db->prepare("SELECT id, clave, valor_texto, valor_numero, valor_fecha, descripcion 
                                   FROM configuracion_global 
-                                  WHERE id = :id");
+                                  WHERE id = :id
+                                  AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -29,8 +33,10 @@ class ConfiguracionGlobal
         $db = Flight::db();
         $sentence = $db->prepare("SELECT id, clave, valor_texto, valor_numero, valor_fecha, descripcion 
                                   FROM configuracion_global 
-                                  WHERE clave = :clave");
+                                  WHERE clave = :clave
+                                  AND id_tenant = :id_tenant");
         $sentence->bindParam(':clave', $clave);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetch();
         Flight::json($response);
@@ -49,8 +55,9 @@ class ConfiguracionGlobal
         $placeholders = implode(',', array_fill(0, count($claves), '?'));
         $sentence = $db->prepare("SELECT id, clave, valor_texto, valor_numero, valor_fecha, descripcion 
                                   FROM configuracion_global 
-                                  WHERE clave IN ($placeholders)");
-        $sentence->execute($claves);
+                                  WHERE clave IN ($placeholders)
+                                  AND id_tenant = ?");
+        $sentence->execute(array_merge($claves, [TenantContext::id()]));
         $response = $sentence->fetchAll();
         
         // Convertir a array asociativo por clave
@@ -73,10 +80,13 @@ class ConfiguracionGlobal
             $valor_fecha = isset(Flight::request()->data['valor_fecha']) ? Flight::request()->data['valor_fecha'] : null;
             $descripcion = isset(Flight::request()->data['descripcion']) ? Flight::request()->data['descripcion'] : null;
 
+            $id = Uuid::generar();
             $sentence = $db->prepare("INSERT INTO configuracion_global 
-                                      (clave, valor_texto, valor_numero, valor_fecha, descripcion) 
-                                      VALUES (:clave, :valor_texto, :valor_numero, :valor_fecha, :descripcion)");
+                                      (id, id_tenant, clave, valor_texto, valor_numero, valor_fecha, descripcion) 
+                                      VALUES (:id, :id_tenant, :clave, :valor_texto, :valor_numero, :valor_fecha, :descripcion)");
             
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':clave', $clave);
             $sentence->bindParam(':valor_texto', $valor_texto);
             $sentence->bindParam(':valor_numero', $valor_numero);
@@ -84,7 +94,6 @@ class ConfiguracionGlobal
             $sentence->bindParam(':descripcion', $descripcion);
             
             $sentence->execute();
-            $id = $db->lastInsertId();
 
             Flight::json(array('id' => $id));
         } catch (Exception $e) {
@@ -111,7 +120,8 @@ class ConfiguracionGlobal
                                       valor_numero = :valor_numero,
                                       valor_fecha = :valor_fecha,
                                       descripcion = :descripcion
-                                      WHERE id = :id");
+                                      WHERE id = :id
+                                      AND id_tenant = :id_tenant");
             
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':clave', $clave);
@@ -120,6 +130,7 @@ class ConfiguracionGlobal
             $sentence->bindParam(':valor_fecha', $valor_fecha);
             $sentence->bindParam(':descripcion', $descripcion);
             
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getById($id);
@@ -143,13 +154,15 @@ class ConfiguracionGlobal
                                       valor_texto = :valor_texto,
                                       valor_numero = :valor_numero,
                                       valor_fecha = :valor_fecha
-                                      WHERE clave = :clave");
+                                      WHERE clave = :clave
+                                      AND id_tenant = :id_tenant");
             
             $sentence->bindParam(':clave', $clave);
             $sentence->bindParam(':valor_texto', $valor_texto);
             $sentence->bindParam(':valor_numero', $valor_numero);
             $sentence->bindParam(':valor_fecha', $valor_fecha);
             
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getByClave($clave);
@@ -164,8 +177,9 @@ class ConfiguracionGlobal
         $db = Flight::db();
         $id = Flight::request()->data['id'];
         
-        $sentence = $db->prepare("DELETE FROM configuracion_global WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM configuracion_global WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         Flight::json(array('id' => $id));

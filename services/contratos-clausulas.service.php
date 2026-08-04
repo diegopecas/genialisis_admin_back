@@ -22,8 +22,10 @@ class ContratosClausulas
                 SELECT cl.*, car.nombre AS cargo_nombre
                 FROM contratos_clausulas cl
                 LEFT JOIN cargos car ON cl.id_cargo = car.id
+                WHERE cl.id_tenant = :id_tenant
                 ORDER BY cl.orden, cl.numero, cl.subnumero
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -46,9 +48,11 @@ class ContratosClausulas
                 FROM contratos_clausulas cl
                 LEFT JOIN cargos car ON cl.id_cargo = car.id
                 WHERE cl.id = :id
+                  AND cl.id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -78,9 +82,11 @@ class ContratosClausulas
                 FROM contratos_clausulas cl
                 WHERE cl.activo = 1
                   AND (cl.id_cargo IS NULL OR cl.id_cargo = :id_cargo)
+                  AND cl.id_tenant = :id_tenant
                 ORDER BY cl.orden, cl.numero, cl.subnumero
             ");
             $sentence->bindParam(':id_cargo', $idCargo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -111,9 +117,9 @@ class ContratosClausulas
 
             $sentence = $db->prepare("
                 INSERT INTO contratos_clausulas
-                    (tipo, id_cargo, numero, subnumero, titulo, contenido, orden, activo)
+                    (id, id_tenant, tipo, id_cargo, numero, subnumero, titulo, contenido, orden, activo)
                 VALUES
-                    (:tipo, :id_cargo, :numero, :subnumero, :titulo, :contenido, :orden, :activo)
+                    (:id, :id_tenant, :tipo, :id_cargo, :numero, :subnumero, :titulo, :contenido, :orden, :activo)
             ");
 
             $idCargo   = Flight::request()->data['id_cargo'] ?? null;
@@ -122,6 +128,9 @@ class ContratosClausulas
             $orden     = Flight::request()->data['orden'] ?? 0;
             $activo    = isset(Flight::request()->data['activo']) ? (int) Flight::request()->data['activo'] : 1;
 
+            $id = Uuid::generar();
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':tipo', $tipo);
             $sentence->bindParam(':id_cargo', $idCargo);
             $sentence->bindParam(':numero', $numero);
@@ -132,7 +141,6 @@ class ContratosClausulas
             $sentence->bindParam(':activo', $activo);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
             Flight::json(['id' => $id]);
         } catch (Exception $e) {
             error_log("Error en ContratosClausulas::new: " . $e->getMessage());
@@ -166,6 +174,7 @@ class ContratosClausulas
                     orden = :orden,
                     activo = :activo
                 WHERE id = :id
+                  AND id_tenant = :id_tenant
             ");
 
             $tipo      = Flight::request()->data['tipo'] ?? null;
@@ -186,6 +195,7 @@ class ContratosClausulas
             $sentence->bindParam(':contenido', $contenido);
             $sentence->bindParam(':orden', $orden);
             $sentence->bindParam(':activo', $activo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             Flight::json(['id' => $id, 'message' => 'Cláusula actualizada correctamente']);
@@ -210,8 +220,9 @@ class ContratosClausulas
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM contratos_clausulas WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM contratos_clausulas WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             Flight::json(['id' => $id, 'message' => 'Cláusula eliminada correctamente']);
         } catch (Exception $e) {

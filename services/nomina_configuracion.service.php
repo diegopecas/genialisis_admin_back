@@ -19,9 +19,11 @@ class NominaConfiguracion {
                     activo,
                     fecha_creacion
                 FROM nomina_configuracion
+                WHERE id_tenant = :id_tenant
                 ORDER BY anio DESC, nombre ASC
             ");
             
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -54,9 +56,11 @@ class NominaConfiguracion {
                     fecha_creacion
                 FROM nomina_configuracion
                 WHERE activo = 1
+                AND id_tenant = :id_tenant
                 ORDER BY anio DESC, nombre ASC
             ");
             
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -88,11 +92,11 @@ class NominaConfiguracion {
                     activo,
                     fecha_creacion
                 FROM nomina_configuracion
-                WHERE anio = :anio AND activo = 1
+                WHERE anio = :anio AND activo = 1 AND id_tenant = :id_tenant
                 ORDER BY nombre ASC
             ");
             
-            $stmt->execute(['anio' => $anio]);
+            $stmt->execute(['anio' => $anio, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -123,10 +127,10 @@ class NominaConfiguracion {
                     activo,
                     fecha_creacion
                 FROM nomina_configuracion
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             
-            $stmt->execute(['id' => $id]);
+            $stmt->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -162,13 +166,14 @@ class NominaConfiguracion {
                     activo,
                     fecha_creacion
                 FROM nomina_configuracion
-                WHERE codigo = :codigo AND anio = :anio AND activo = 1
+                WHERE codigo = :codigo AND anio = :anio AND activo = 1 AND id_tenant = :id_tenant
                 LIMIT 1
             ");
             
             $stmt->execute([
                 'codigo' => $codigo,
-                'anio' => $anio
+                'anio' => $anio,
+                'id_tenant' => TenantContext::id()
             ]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -201,11 +206,12 @@ class NominaConfiguracion {
             $stmt = $db->prepare("
                 SELECT COUNT(*) as existe 
                 FROM nomina_configuracion 
-                WHERE codigo = :codigo AND anio = :anio
+                WHERE codigo = :codigo AND anio = :anio AND id_tenant = :id_tenant
             ");
             $stmt->execute([
                 'codigo' => $data['codigo'],
-                'anio' => $data['anio']
+                'anio' => $data['anio'],
+                'id_tenant' => TenantContext::id()
             ]);
             $existe = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -218,6 +224,8 @@ class NominaConfiguracion {
             
             $stmt = $db->prepare("
                 INSERT INTO nomina_configuracion (
+                    id,
+                    id_tenant,
                     codigo,
                     nombre,
                     descripcion,
@@ -225,6 +233,8 @@ class NominaConfiguracion {
                     anio,
                     activo
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :codigo,
                     :nombre,
                     :descripcion,
@@ -234,7 +244,10 @@ class NominaConfiguracion {
                 )
             ");
             
+            $idConfig = Uuid::generar();
             $stmt->execute([
+                'id' => $idConfig,
+                'id_tenant' => TenantContext::id(),
                 'codigo' => $data['codigo'],
                 'nombre' => $data['nombre'],
                 'descripcion' => $data['descripcion'] ?? null,
@@ -246,7 +259,7 @@ class NominaConfiguracion {
             Flight::json([
                 'success' => true,
                 'message' => 'Configuración creada correctamente',
-                'id' => $db->lastInsertId()
+                'id' => $idConfig
             ], 200);
             
         } catch (Exception $e) {
@@ -275,12 +288,13 @@ class NominaConfiguracion {
             $stmt = $db->prepare("
                 SELECT COUNT(*) as existe 
                 FROM nomina_configuracion 
-                WHERE codigo = :codigo AND anio = :anio AND id != :id
+                WHERE codigo = :codigo AND anio = :anio AND id != :id AND id_tenant = :id_tenant
             ");
             $stmt->execute([
                 'codigo' => $data['codigo'],
                 'anio' => $data['anio'],
-                'id' => $data['id']
+                'id' => $data['id'],
+                'id_tenant' => TenantContext::id()
             ]);
             $existe = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -300,11 +314,12 @@ class NominaConfiguracion {
                     valor = :valor,
                     anio = :anio,
                     activo = :activo
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             
             $stmt->execute([
                 'id' => $data['id'],
+                'id_tenant' => TenantContext::id(),
                 'codigo' => $data['codigo'],
                 'nombre' => $data['nombre'],
                 'descripcion' => $data['descripcion'] ?? null,
@@ -340,8 +355,8 @@ class NominaConfiguracion {
             
             $db = Flight::db();
             
-            $stmt = $db->prepare("DELETE FROM nomina_configuracion WHERE id = :id");
-            $stmt->execute(['id' => $data['id']]);
+            $stmt = $db->prepare("DELETE FROM nomina_configuracion WHERE id = :id AND id_tenant = :id_tenant");
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,

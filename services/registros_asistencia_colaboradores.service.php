@@ -20,10 +20,12 @@ class RegistrosAsistenciaColaboradores
             LEFT JOIN personas pa ON ca.id_persona = pa.id
             WHERE ra.id_colaborador = :id_colaborador
             AND ra.fecha BETWEEN :fecha_desde AND :fecha_hasta
+            AND ra.id_tenant = :id_tenant
             ORDER BY ra.fecha DESC, ra.hora_registro DESC");
         $sentence->bindParam(':id_colaborador', $id_colaborador);
         $sentence->bindParam(':fecha_desde', $fecha_desde);
         $sentence->bindParam(':fecha_hasta', $fecha_hasta);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -42,9 +44,11 @@ class RegistrosAsistenciaColaboradores
             INNER JOIN tipos_registro_asistencia tra ON ra.id_tipo_registro = tra.id
             LEFT JOIN estados_registro_asistencia era ON ra.id_estado = era.id
             WHERE ra.id_colaborador = :id_colaborador AND ra.fecha = :hoy
+            AND ra.id_tenant = :id_tenant
             ORDER BY ra.hora_registro ASC");
         $sentence->bindParam(':id_colaborador', $id_colaborador);
         $sentence->bindParam(':hoy', $hoy);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -53,7 +57,8 @@ class RegistrosAsistenciaColaboradores
     public static function getTiposRegistro()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT id, nombre, codigo, orden FROM tipos_registro_asistencia WHERE activo = 1 ORDER BY orden");
+        $sentence = $db->prepare("SELECT id, nombre, codigo, orden FROM tipos_registro_asistencia WHERE activo = 1 AND id_tenant = :id_tenant ORDER BY orden");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         Flight::json($sentence->fetchAll());
     }
@@ -69,7 +74,8 @@ class RegistrosAsistenciaColaboradores
     public static function getConfiguracionGeofence()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT clave, valor_texto, valor_numero FROM configuracion_global WHERE clave IN ('asistencia_tolerancia_minutos','asistencia_geofence_poligono')");
+        $sentence = $db->prepare("SELECT clave, valor_texto, valor_numero FROM configuracion_global WHERE clave IN ('asistencia_tolerancia_minutos','asistencia_geofence_poligono') AND id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $rows = $sentence->fetchAll();
         $config = [];
@@ -103,9 +109,11 @@ class RegistrosAsistenciaColaboradores
             INNER JOIN colaboradores c ON ra.id_colaborador = c.id
             INNER JOIN personas p ON c.id_persona = p.id
             WHERE ra.fecha BETWEEN :fecha_desde AND :fecha_hasta
+            AND ra.id_tenant = :id_tenant
             ORDER BY ra.fecha DESC, nombre_colaborador, ra.hora_registro ASC");
         $sentence->bindParam(':fecha_desde', $fecha_desde);
         $sentence->bindParam(':fecha_hasta', $fecha_hasta);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $registros = $sentence->fetchAll();
 
@@ -146,9 +154,10 @@ class RegistrosAsistenciaColaboradores
                 INNER JOIN personas p ON c.id_persona = p.id
                 WHERE ra.huella_dispositivo IN ($placeholders)
                 AND ra.huella_dispositivo IS NOT NULL
+                AND ra.id_tenant = ?
                 GROUP BY ra.huella_dispositivo, ra.id_colaborador, p.primer_nombre, p.primer_apellido
                 ORDER BY ra.huella_dispositivo, total DESC");
-            $duenos->execute(array_values($huellas));
+            $duenos->execute(array_merge(array_values($huellas), [TenantContext::id()]));
             $resultDuenos = $duenos->fetchAll();
 
             // Mapear: huella -> colaborador con más registros (dueño habitual)
@@ -181,9 +190,11 @@ class RegistrosAsistenciaColaboradores
             COUNT(CASE WHEN ra.registro_manual = 1 THEN 1 END) AS manuales
             FROM registros_asistencia_colaboradores ra
             LEFT JOIN estados_registro_asistencia era ON ra.id_estado = era.id
-            WHERE ra.fecha BETWEEN :fecha_desde AND :fecha_hasta");
+            WHERE ra.fecha BETWEEN :fecha_desde AND :fecha_hasta
+            AND ra.id_tenant = :id_tenant");
         $stats->bindParam(':fecha_desde', $fecha_desde);
         $stats->bindParam(':fecha_hasta', $fecha_hasta);
+        $stats->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $stats->execute();
         $estadisticas = $stats->fetch();
 
@@ -223,9 +234,10 @@ class RegistrosAsistenciaColaboradores
                 $horaManual = date('H:i:s', strtotime($fecha_registro_real));
                 $fechaManual = date('Y-m-d', strtotime($fecha_registro_real));
 
-                $ultimoReg = $db->prepare("SELECT hora_registro, fecha_registro_real FROM registros_asistencia_colaboradores WHERE id_colaborador = :id_colaborador AND fecha = :fecha ORDER BY hora_registro DESC LIMIT 1");
+                $ultimoReg = $db->prepare("SELECT hora_registro, fecha_registro_real FROM registros_asistencia_colaboradores WHERE id_colaborador = :id_colaborador AND fecha = :fecha AND id_tenant = :id_tenant ORDER BY hora_registro DESC LIMIT 1");
                 $ultimoReg->bindParam(':id_colaborador', $id_colaborador);
                 $ultimoReg->bindParam(':fecha', $fechaManual);
+                $ultimoReg->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $ultimoReg->execute();
                 $ultimo = $ultimoReg->fetch();
 
@@ -241,7 +253,10 @@ class RegistrosAsistenciaColaboradores
                 $fecha = $fechaManual;
             }
 
-            $sentence = $db->prepare("INSERT INTO registros_asistencia_colaboradores (id_colaborador, fecha, id_tipo_registro, hora_registro, fecha_registro_real, latitud, longitud, distancia_metros, dentro_rango, id_estado, registro_manual, id_autorizado_por, fecha_autorizacion, observaciones, ip_address, user_agent, huella_dispositivo, id_usuario) VALUES (:id_colaborador, :fecha, :id_tipo_registro, :hora_registro, :fecha_registro_real, :latitud, :longitud, :distancia_metros, :dentro_rango, :id_estado, :registro_manual, :id_autorizado_por, :fecha_autorizacion, :observaciones, :ip_address, :user_agent, :huella_dispositivo, :id_usuario)");
+            $idReg = Uuid::generar();
+            $sentence = $db->prepare("INSERT INTO registros_asistencia_colaboradores (id, id_tenant, id_colaborador, fecha, id_tipo_registro, hora_registro, fecha_registro_real, latitud, longitud, distancia_metros, dentro_rango, id_estado, registro_manual, id_autorizado_por, fecha_autorizacion, observaciones, ip_address, user_agent, huella_dispositivo, id_usuario) VALUES (:id, :id_tenant, :id_colaborador, :fecha, :id_tipo_registro, :hora_registro, :fecha_registro_real, :latitud, :longitud, :distancia_metros, :dentro_rango, :id_estado, :registro_manual, :id_autorizado_por, :fecha_autorizacion, :observaciones, :ip_address, :user_agent, :huella_dispositivo, :id_usuario)");
+            $sentence->bindValue(':id', $idReg);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_colaborador', $id_colaborador);
             $sentence->bindParam(':fecha', $fecha);
             $sentence->bindParam(':id_tipo_registro', $id_tipo_registro);
@@ -262,9 +277,8 @@ class RegistrosAsistenciaColaboradores
             $sentence->bindParam(':id_usuario', $id_usuario);
             $sentence->execute();
 
-            $id = $db->lastInsertId();
             $db->commit();
-            Flight::json(array('id' => $id, 'message' => 'Registro guardado correctamente'));
+            Flight::json(array('id' => $idReg, 'message' => 'Registro guardado correctamente'));
         } catch (Exception $e) {
             $db->rollBack();
             error_log("Error en registrar asistencia: " . $e->getMessage());
@@ -278,16 +292,18 @@ class RegistrosAsistenciaColaboradores
         try {
             $id = Flight::request()->data['id'];
 
-            $check = $db->prepare("SELECT id FROM registros_asistencia_colaboradores WHERE id = :id");
+            $check = $db->prepare("SELECT id FROM registros_asistencia_colaboradores WHERE id = :id AND id_tenant = :id_tenant");
             $check->bindParam(':id', $id);
+            $check->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $check->execute();
             if (!$check->fetch()) {
                 Flight::json(array('error' => 'Registro no encontrado'), 404);
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM registros_asistencia_colaboradores WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM registros_asistencia_colaboradores WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id, 'message' => 'Registro eliminado correctamente'));

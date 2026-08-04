@@ -22,9 +22,12 @@ class PrestamoCuota
                     prestamos_cuotas pc
                 left join 
                     estados_cuota_prestamo ec on pc.id_estado = ec.id
+                where 
+                    pc.id_tenant = :id_tenant
                 order by 
                     pc.id_prestamo, pc.numero_cuota
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -61,8 +64,10 @@ class PrestamoCuota
                     estados_cuota_prestamo ec on pc.id_estado = ec.id
                 where 
                     pc.id = :id
+                    and pc.id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -109,10 +114,12 @@ class PrestamoCuota
                     estados_cuota_prestamo ec on pc.id_estado = ec.id
                 where 
                     pc.id_prestamo = :id_prestamo
+                    and pc.id_tenant = :id_tenant
                 order by 
                     pc.numero_cuota
             ");
             $sentence->bindParam(':id_prestamo', $id_prestamo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -142,14 +149,17 @@ class PrestamoCuota
 
             $sentence = $db->prepare("
                 insert into prestamos_cuotas(
-                    id_prestamo, numero_cuota, fecha_programada, monto_cuota,
+                    id, id_tenant, id_prestamo, numero_cuota, fecha_programada, monto_cuota,
                     monto_capital, monto_interes, id_estado, observaciones
                 ) values (
-                    :id_prestamo, :numero_cuota, :fecha_programada, :monto_cuota,
+                    :id, :id_tenant, :id_prestamo, :numero_cuota, :fecha_programada, :monto_cuota,
                     :monto_capital, :monto_interes, :id_estado, :observaciones
                 )
             ");
 
+            $id = Uuid::generar();
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_prestamo', $id_prestamo);
             $sentence->bindParam(':numero_cuota', $numero_cuota);
             $sentence->bindParam(':fecha_programada', $fecha_programada);
@@ -161,7 +171,6 @@ class PrestamoCuota
 
             $sentence->execute();
 
-            $id = $db->lastInsertId();
             Flight::json(array('id' => $id));
         } catch (PDOException $e) {
             error_log("Error PDO en new prestamo cuota: " . $e->getMessage());
@@ -200,6 +209,7 @@ class PrestamoCuota
                     fecha_pago = :fecha_pago,
                     observaciones = :observaciones
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
@@ -212,6 +222,7 @@ class PrestamoCuota
             $sentence->bindParam(':id_estado', $id_estado);
             $sentence->bindParam(':fecha_pago', $fecha_pago);
             $sentence->bindParam(':observaciones', $observaciones);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             self::getById($id);
@@ -225,8 +236,9 @@ class PrestamoCuota
     {
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("delete from prestamos_cuotas where id = :id");
+        $sentence = $db->prepare("delete from prestamos_cuotas where id = :id and id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         Flight::json(array('id' => $id));
     }
@@ -251,16 +263,19 @@ class PrestamoCuota
 
             try {
                 $query = "insert into prestamos_cuotas (
-                    id_prestamo, numero_cuota, fecha_programada, monto_cuota,
+                    id, id_tenant, id_prestamo, numero_cuota, fecha_programada, monto_cuota,
                     monto_capital, monto_interes, id_estado
                 ) values (
-                    :id_prestamo, :numero_cuota, :fecha_programada, :monto_cuota,
+                    :id, :id_tenant, :id_prestamo, :numero_cuota, :fecha_programada, :monto_cuota,
                     :monto_capital, :monto_interes, :id_estado
                 )";
                 $sentence = $db->prepare($query);
 
                 foreach ($cuotas as $cuota) {
                     try {
+                        $idCuota = Uuid::generar();
+                        $sentence->bindValue(':id', $idCuota);
+                        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                         $sentence->bindParam(':id_prestamo', $id_prestamo);
                         $sentence->bindParam(':numero_cuota', $cuota['numero_cuota']);
                         $sentence->bindParam(':fecha_programada', $cuota['fecha_programada']);
@@ -272,7 +287,7 @@ class PrestamoCuota
                         $sentence->execute();
 
                         $resultados[] = [
-                            'id' => $db->lastInsertId(),
+                            'id' => $idCuota,
                             'numero_cuota' => $cuota['numero_cuota'],
                             'success' => true
                         ];
@@ -329,10 +344,12 @@ class PrestamoCuota
                 set id_estado = 2, 
                     fecha_pago = :fecha_pago
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha_pago', $fecha_pago);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getById($id);
@@ -356,9 +373,11 @@ class PrestamoCuota
                 update prestamos_cuotas 
                 set id_estado = 3
                 where id = :id
+                and id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             self::getById($id);

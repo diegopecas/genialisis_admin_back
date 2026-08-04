@@ -24,8 +24,10 @@ class CargosPlantillasContratos
                 INNER JOIN cargos car ON cpc.id_cargo = car.id
                 INNER JOIN tipos_contrato tc ON cpc.id_tipo_contrato = tc.id
                 INNER JOIN plantillas pl ON cpc.id_plantilla = pl.id
+                WHERE cpc.id_tenant = :id_tenant
                 ORDER BY car.nombre, tc.nombre
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -56,9 +58,11 @@ class CargosPlantillasContratos
                 INNER JOIN tipos_contrato tc ON cpc.id_tipo_contrato = tc.id
                 INNER JOIN plantillas pl ON cpc.id_plantilla = pl.id
                 WHERE cpc.id = :id
+                  AND cpc.id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -93,10 +97,12 @@ class CargosPlantillasContratos
                 WHERE cpc.id_cargo = :id_cargo
                   AND cpc.id_tipo_contrato = :id_tipo_contrato
                   AND cpc.activo = 1
+                  AND cpc.id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentence->bindParam(':id_cargo', $idCargo);
             $sentence->bindParam(':id_tipo_contrato', $idTipoContrato);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -135,16 +141,18 @@ class CargosPlantillasContratos
             }
 
             $sentence = $db->prepare("
-                INSERT INTO cargos_plantillas_contratos (id_cargo, id_tipo_contrato, id_plantilla, activo)
-                VALUES (:id_cargo, :id_tipo_contrato, :id_plantilla, :activo)
+                INSERT INTO cargos_plantillas_contratos (id, id_tenant, id_cargo, id_tipo_contrato, id_plantilla, activo)
+                VALUES (:id, :id_tenant, :id_cargo, :id_tipo_contrato, :id_plantilla, :activo)
             ");
+            $id = Uuid::generar();
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_cargo', $idCargo);
             $sentence->bindParam(':id_tipo_contrato', $idTipoContrato);
             $sentence->bindParam(':id_plantilla', $idPlantilla);
             $sentence->bindParam(':activo', $activo);
             $sentence->execute();
 
-            $id = $db->lastInsertId();
             Flight::json(['id' => $id]);
         } catch (Exception $e) {
             error_log("Error en CargosPlantillasContratos::new: " . $e->getMessage());
@@ -181,13 +189,14 @@ class CargosPlantillasContratos
                     id_tipo_contrato = :id_tipo_contrato,
                     id_plantilla = :id_plantilla,
                     activo = :activo
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':id_cargo', $idCargo);
             $sentence->bindParam(':id_tipo_contrato', $idTipoContrato);
             $sentence->bindParam(':id_plantilla', $idPlantilla);
             $sentence->bindParam(':activo', $activo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(['id' => $id, 'message' => 'Mapeo actualizado correctamente']);
@@ -216,8 +225,9 @@ class CargosPlantillasContratos
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM cargos_plantillas_contratos WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM cargos_plantillas_contratos WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(['id' => $id, 'message' => 'Mapeo eliminado correctamente']);

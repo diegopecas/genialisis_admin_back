@@ -22,9 +22,9 @@ class MovimientosFinancieros
                 cm.nombre as categoria_nombre, cm.color as categoria_color, cm.id_tipo_movimiento,
                 tm.nombre as tipo_movimiento_nombre, tm.icono as tipo_movimiento_icono,
                 mp.nombre as medio_pago_nombre, mp.icono as medio_pago_icono, mp.color as medio_pago_color,
-                CONCAT(pr.primer_nombre, ' ', pr.primer_apellido) as usuario_registro_nombre,
-                CONCAT(pa.primer_nombre, ' ', pa.primer_apellido) as usuario_aprobacion_nombre,
-                CONCAT(pan.primer_nombre, ' ', pan.primer_apellido) as usuario_anulacion_nombre
+                CONCAT_WS(' ', pr.primer_nombre, pr.primer_apellido) as usuario_registro_nombre,
+                CONCAT_WS(' ', pa.primer_nombre, pa.primer_apellido) as usuario_aprobacion_nombre,
+                CONCAT_WS(' ', pan.primer_nombre, pan.primer_apellido) as usuario_anulacion_nombre
                 FROM movimientos_financieros mf
                 INNER JOIN conceptos_financieros cf ON mf.id_concepto_financiero = cf.id
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
@@ -36,8 +36,10 @@ class MovimientosFinancieros
                 LEFT JOIN personas pa ON ua.id_persona = pa.id
                 LEFT JOIN usuarios uan ON mf.id_usuario_anulacion = uan.id
                 LEFT JOIN personas pan ON uan.id_persona = pan.id
+                WHERE mf.id_tenant = :id_tenant
                 ORDER BY mf.fecha DESC, mf.fecha_registro DESC
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -57,9 +59,9 @@ class MovimientosFinancieros
                 cm.nombre as categoria_nombre, cm.color as categoria_color, cm.id_tipo_movimiento,
                 tm.nombre as tipo_movimiento_nombre, tm.icono as tipo_movimiento_icono,
                 mp.nombre as medio_pago_nombre, mp.icono as medio_pago_icono, mp.color as medio_pago_color,
-                CONCAT(pr.primer_nombre, ' ', pr.primer_apellido) as usuario_registro_nombre,
-                CONCAT(pa.primer_nombre, ' ', pa.primer_apellido) as usuario_aprobacion_nombre,
-                CONCAT(pan.primer_nombre, ' ', pan.primer_apellido) as usuario_anulacion_nombre
+                CONCAT_WS(' ', pr.primer_nombre, pr.primer_apellido) as usuario_registro_nombre,
+                CONCAT_WS(' ', pa.primer_nombre, pa.primer_apellido) as usuario_aprobacion_nombre,
+                CONCAT_WS(' ', pan.primer_nombre, pan.primer_apellido) as usuario_anulacion_nombre
                 FROM movimientos_financieros mf
                 INNER JOIN conceptos_financieros cf ON mf.id_concepto_financiero = cf.id
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
@@ -71,9 +73,10 @@ class MovimientosFinancieros
                 LEFT JOIN personas pa ON ua.id_persona = pa.id
                 LEFT JOIN usuarios uan ON mf.id_usuario_anulacion = uan.id
                 LEFT JOIN personas pan ON uan.id_persona = pan.id
-                WHERE mf.id = :id
+                WHERE mf.id = :id AND mf.id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -95,9 +98,9 @@ class MovimientosFinancieros
                 cm.nombre as categoria_nombre, cm.color as categoria_color, cm.id_tipo_movimiento,
                 tm.nombre as tipo_movimiento_nombre, tm.icono as tipo_movimiento_icono,
                 mp.nombre as medio_pago_nombre, mp.icono as medio_pago_icono, mp.color as medio_pago_color,
-                CONCAT(pr.primer_nombre, ' ', pr.primer_apellido) as usuario_registro_nombre,
-                CONCAT(pa.primer_nombre, ' ', pa.primer_apellido) as usuario_aprobacion_nombre,
-                CONCAT(pan.primer_nombre, ' ', pan.primer_apellido) as usuario_anulacion_nombre
+                CONCAT_WS(' ', pr.primer_nombre, pr.primer_apellido) as usuario_registro_nombre,
+                CONCAT_WS(' ', pa.primer_nombre, pa.primer_apellido) as usuario_aprobacion_nombre,
+                CONCAT_WS(' ', pan.primer_nombre, pan.primer_apellido) as usuario_anulacion_nombre
                 FROM movimientos_financieros mf
                 INNER JOIN conceptos_financieros cf ON mf.id_concepto_financiero = cf.id
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
@@ -109,11 +112,12 @@ class MovimientosFinancieros
                 LEFT JOIN personas pa ON ua.id_persona = pa.id
                 LEFT JOIN usuarios uan ON mf.id_usuario_anulacion = uan.id
                 LEFT JOIN personas pan ON uan.id_persona = pan.id
-                WHERE mf.fecha BETWEEN :fecha_inicio AND :fecha_fin AND mf.anulado = 0
+                WHERE mf.fecha BETWEEN :fecha_inicio AND :fecha_fin AND mf.anulado = 0 AND mf.id_tenant = :id_tenant
                 ORDER BY mf.fecha DESC, mf.fecha_registro DESC
             ");
             $sentence->bindParam(':fecha_inicio', $data['fecha_inicio']);
             $sentence->bindParam(':fecha_fin', $data['fecha_fin']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -141,11 +145,13 @@ class MovimientosFinancieros
                 WHERE mf.fecha BETWEEN :fecha_inicio AND :fecha_fin 
                 AND mf.anulado = 0 
                 AND mf.id_usuario_aprobacion IS NOT NULL
+                AND mf.id_tenant = :id_tenant
                 GROUP BY tm.id, tm.nombre
                 ORDER BY tm.id
             ");
             $sentence->bindParam(':fecha_inicio', $data['fecha_inicio']);
             $sentence->bindParam(':fecha_fin', $data['fecha_fin']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -176,11 +182,13 @@ class MovimientosFinancieros
                 WHERE mf.fecha BETWEEN :fecha_inicio AND :fecha_fin 
                 AND mf.anulado = 0 
                 AND mf.id_usuario_aprobacion IS NOT NULL
+                AND mf.id_tenant = :id_tenant
                 GROUP BY cm.id, cm.nombre, cm.color, tm.nombre
                 ORDER BY total DESC
             ");
             $sentence->bindParam(':fecha_inicio', $data['fecha_inicio']);
             $sentence->bindParam(':fecha_fin', $data['fecha_fin']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -213,7 +221,7 @@ class MovimientosFinancieros
                 cm.nombre as categoria_nombre, cm.color as categoria_color,
                 tm.nombre as tipo_movimiento_nombre, tm.icono as tipo_movimiento_icono,
                 mp.nombre as medio_pago_nombre, mp.icono as medio_pago_icono, mp.color as medio_pago_color,
-                CONCAT(pr.primer_nombre, ' ', pr.primer_apellido) as usuario_registro_nombre
+                CONCAT_WS(' ', pr.primer_nombre, pr.primer_apellido) as usuario_registro_nombre
                 FROM movimientos_financieros mf
                 INNER JOIN conceptos_financieros cf ON mf.id_concepto_financiero = cf.id
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
@@ -221,10 +229,11 @@ class MovimientosFinancieros
                 INNER JOIN medios_pago_financieros mp ON mf.id_medio_pago_financiero = mp.id
                 INNER JOIN usuarios ur ON mf.id_usuario_registro = ur.id
                 INNER JOIN personas pr ON ur.id_persona = pr.id
-                WHERE YEAR(mf.fecha) = :anio
+                WHERE YEAR(mf.fecha) = :anio AND mf.id_tenant = :id_tenant
                 ORDER BY mf.fecha DESC, mf.fecha_registro DESC
             ");
             $sentence->bindParam(':anio', $anio, PDO::PARAM_INT);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -246,8 +255,9 @@ class MovimientosFinancieros
                 $dataArray[$key] = $value;
             }
 
-            $checkConcepto = $db->prepare("SELECT id, requiere_detalle FROM conceptos_financieros WHERE id = :id");
+            $checkConcepto = $db->prepare("SELECT id, requiere_detalle FROM conceptos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkConcepto->bindParam(':id', $dataArray['id_concepto_financiero']);
+            $checkConcepto->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkConcepto->execute();
             $concepto = $checkConcepto->fetch(PDO::FETCH_ASSOC);
 
@@ -267,14 +277,17 @@ class MovimientosFinancieros
 
             $sentence = $db->prepare("
                 INSERT INTO movimientos_financieros 
-                (fecha, id_concepto_financiero, id_medio_pago_financiero, valor, detalle, 
+                (id, id_tenant, fecha, id_concepto_financiero, id_medio_pago_financiero, valor, detalle, 
                  referencia_externa, observaciones, id_usuario_registro, fecha_registro, 
                  anulado, created_at, updated_at) 
-                VALUES (:fecha, :id_concepto_financiero, :id_medio_pago_financiero, :valor, :detalle, 
+                VALUES (:id, :id_tenant, :fecha, :id_concepto_financiero, :id_medio_pago_financiero, :valor, :detalle, 
                         :referencia_externa, :observaciones, :id_usuario_registro, NOW(),
                         0, NOW(), NOW())
             ");
 
+            $idMF = Uuid::generar();
+            $sentence->bindValue(':id', $idMF);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':fecha', $dataArray['fecha']);
             $sentence->bindParam(':id_concepto_financiero', $dataArray['id_concepto_financiero']);
             $sentence->bindParam(':id_medio_pago_financiero', $dataArray['id_medio_pago_financiero']);
@@ -285,7 +298,7 @@ class MovimientosFinancieros
             $sentence->bindParam(':id_usuario_registro', $dataArray['id_usuario_registro']);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
+            $id = $idMF;
 
             Flight::json(array('id' => $id));
         } catch (Exception $e) {
@@ -307,8 +320,9 @@ class MovimientosFinancieros
                 $dataArray[$key] = $value;
             }
 
-            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id");
+            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkMovimiento->bindParam(':id', $dataArray['id']);
+            $checkMovimiento->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkMovimiento->execute();
             $movimiento = $checkMovimiento->fetch(PDO::FETCH_ASSOC);
 
@@ -327,8 +341,9 @@ class MovimientosFinancieros
                 return;
             }
 
-            $checkConcepto = $db->prepare("SELECT requiere_detalle FROM conceptos_financieros WHERE id = :id");
+            $checkConcepto = $db->prepare("SELECT requiere_detalle FROM conceptos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkConcepto->bindParam(':id', $dataArray['id_concepto_financiero']);
+            $checkConcepto->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkConcepto->execute();
             $concepto = $checkConcepto->fetch(PDO::FETCH_ASSOC);
 
@@ -352,7 +367,7 @@ class MovimientosFinancieros
                     id_medio_pago_financiero = :id_medio_pago_financiero, valor = :valor, 
                     detalle = :detalle, referencia_externa = :referencia_externa, 
                     observaciones = :observaciones, updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $dataArray['id']);
@@ -363,7 +378,7 @@ class MovimientosFinancieros
             $sentence->bindParam(':detalle', $detalle);
             $sentence->bindParam(':referencia_externa', $referencia_externa);
             $sentence->bindParam(':observaciones', $observaciones);
-
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             self::getById($data['id']);
         } catch (Exception $e) {
@@ -384,8 +399,9 @@ class MovimientosFinancieros
                 $dataArray[$key] = $value;
             }
 
-            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id");
+            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkMovimiento->bindParam(':id', $dataArray['id']);
+            $checkMovimiento->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkMovimiento->execute();
             $movimiento = $checkMovimiento->fetch(PDO::FETCH_ASSOC);
 
@@ -403,12 +419,12 @@ class MovimientosFinancieros
                 UPDATE movimientos_financieros 
                 SET fecha_aprobacion = NOW(), id_usuario_aprobacion = :id_usuario_aprobacion,
                     updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $dataArray['id']);
             $sentence->bindParam(':id_usuario_aprobacion', $dataArray['id_usuario_aprobacion']);
-
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             Flight::json(array('message' => 'Movimiento aprobado exitosamente'));
         } catch (Exception $e) {
@@ -429,8 +445,9 @@ class MovimientosFinancieros
                 $dataArray[$key] = $value;
             }
 
-            $checkMovimiento = $db->prepare("SELECT anulado FROM movimientos_financieros WHERE id = :id");
+            $checkMovimiento = $db->prepare("SELECT anulado FROM movimientos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkMovimiento->bindParam(':id', $dataArray['id']);
+            $checkMovimiento->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkMovimiento->execute();
             $movimiento = $checkMovimiento->fetch(PDO::FETCH_ASSOC);
 
@@ -443,12 +460,12 @@ class MovimientosFinancieros
                 UPDATE movimientos_financieros 
                 SET anulado = 1, fecha_anulacion = NOW(), id_usuario_anulacion = :id_usuario_anulacion,
                     updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $dataArray['id']);
             $sentence->bindParam(':id_usuario_anulacion', $dataArray['id_usuario_anulacion']);
-
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             Flight::json(array('message' => 'Movimiento anulado exitosamente'));
         } catch (Exception $e) {
@@ -463,8 +480,9 @@ class MovimientosFinancieros
             $db = Flight::db();
             $id = Flight::request()->data['id'];
 
-            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id");
+            $checkMovimiento = $db->prepare("SELECT id_usuario_aprobacion, anulado FROM movimientos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $checkMovimiento->bindParam(':id', $id);
+            $checkMovimiento->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $checkMovimiento->execute();
             $movimiento = $checkMovimiento->fetch(PDO::FETCH_ASSOC);
 
@@ -478,8 +496,9 @@ class MovimientosFinancieros
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM movimientos_financieros WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM movimientos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id));
@@ -504,7 +523,7 @@ class MovimientosFinancieros
             cm.nombre as categoria_nombre, cm.color as categoria_color, cm.id_tipo_movimiento,
             tm.nombre as tipo_movimiento_nombre, tm.icono as tipo_movimiento_icono,
             mp.nombre as medio_pago_nombre, mp.icono as medio_pago_icono, mp.color as medio_pago_color,
-            CONCAT(pr.primer_nombre, ' ', pr.primer_apellido) as usuario_registro_nombre,
+            CONCAT_WS(' ', pr.primer_nombre, pr.primer_apellido) as usuario_registro_nombre,
             'Registrado' as estado
             FROM movimientos_financieros mf
             INNER JOIN conceptos_financieros cf ON mf.id_concepto_financiero = cf.id
@@ -515,8 +534,10 @@ class MovimientosFinancieros
             INNER JOIN personas pr ON ur.id_persona = pr.id
             WHERE mf.anulado = 0 
             AND mf.id_usuario_aprobacion IS NULL
+            AND mf.id_tenant = :id_tenant
             ORDER BY mf.fecha DESC, mf.fecha_registro DESC
         ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -574,17 +595,19 @@ class MovimientosFinancieros
                              updated_at = NOW()
                          WHERE id = :id 
                          AND anulado = 0 
-                         AND id_usuario_aprobacion IS NULL";
+                         AND id_usuario_aprobacion IS NULL
+                         AND id_tenant = :id_tenant";
 
                 $stmtUpdate = $db->prepare($sqlUpdate);
 
                 foreach ($ids as $id) {
                     $sqlCheck = "SELECT id, anulado, id_usuario_aprobacion, observaciones 
                            FROM movimientos_financieros 
-                           WHERE id = :id";
+                           WHERE id = :id AND id_tenant = :id_tenant";
 
                     $stmtCheck = $db->prepare($sqlCheck);
                     $stmtCheck->bindParam(':id', $id);
+                    $stmtCheck->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtCheck->execute();
                     $movimiento = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
@@ -607,6 +630,7 @@ class MovimientosFinancieros
                     $stmtUpdate->bindParam(':fecha', $fecha_aprobacion);
                     $stmtUpdate->bindParam(':fecha_texto', $fecha_aprobacion);
                     $stmtUpdate->bindParam(':observaciones_nuevas', $observaciones_aprobacion);
+                    $stmtUpdate->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtUpdate->bindParam(':id', $id);
 
                     if ($stmtUpdate->execute() && $stmtUpdate->rowCount() > 0) {

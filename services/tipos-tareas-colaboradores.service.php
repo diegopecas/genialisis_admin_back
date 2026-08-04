@@ -7,7 +7,8 @@ class TiposTareasColaboradores
 
         try {
             $db = Flight::db();
-            $sentence = $db->prepare("SELECT id, nombre, activo FROM tipos_tareas_colaboradores WHERE activo = 1 ORDER BY nombre");
+            $sentence = $db->prepare("SELECT id, nombre, activo FROM tipos_tareas_colaboradores WHERE activo = 1 AND id_tenant = :id_tenant ORDER BY nombre");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             Flight::json($sentence->fetchAll(PDO::FETCH_ASSOC));
         } catch (Exception $e) {
@@ -22,8 +23,9 @@ class TiposTareasColaboradores
 
         try {
             $db = Flight::db();
-            $sentence = $db->prepare("SELECT id, nombre, activo FROM tipos_tareas_colaboradores WHERE id = :id");
-            $sentence->bindParam(':id', $id, PDO::PARAM_INT);
+            $sentence = $db->prepare("SELECT id, nombre, activo FROM tipos_tareas_colaboradores WHERE id = :id AND id_tenant = :id_tenant");
+            $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             Flight::json($sentence->fetchAll(PDO::FETCH_ASSOC));
         } catch (Exception $e) {

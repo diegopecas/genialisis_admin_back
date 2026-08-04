@@ -47,8 +47,10 @@ class Ayuda
                 FROM roles_x_usuario ru
                 INNER JOIN permisos_x_rol pxr ON ru.id_rol = pxr.id_rol
                 WHERE ru.id_usuario = :id_usuario
+                AND ru.id_tenant = :id_tenant
             ");
-            $stmtPermisos->bindParam(':id_usuario', $userData->id, PDO::PARAM_INT);
+            $stmtPermisos->bindParam(':id_usuario', $userData->id);
+            $stmtPermisos->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtPermisos->execute();
             $codigosPermitidos = $stmtPermisos->fetchAll(PDO::FETCH_COLUMN);
 

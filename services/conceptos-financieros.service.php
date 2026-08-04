@@ -12,8 +12,10 @@ class ConceptosFinancieros {
                 FROM conceptos_financieros cf
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
                 INNER JOIN tipos_movimientos_financieros tm ON cm.id_tipo_movimiento = tm.id
+                WHERE cf.id_tenant = :id_tenant
                 ORDER BY cm.orden, cf.nombre
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -35,8 +37,10 @@ class ConceptosFinancieros {
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
                 INNER JOIN tipos_movimientos_financieros tm ON cm.id_tipo_movimiento = tm.id
                 WHERE cf.id = :id
+                AND cf.id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -58,9 +62,11 @@ class ConceptosFinancieros {
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
                 INNER JOIN tipos_movimientos_financieros tm ON cm.id_tipo_movimiento = tm.id
                 WHERE cf.id_categoria_movimiento_financiero = :id_categoria
+                AND cf.id_tenant = :id_tenant
                 ORDER BY cf.nombre
             ");
             $sentence->bindParam(':id_categoria', $id_categoria);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -82,9 +88,11 @@ class ConceptosFinancieros {
                 INNER JOIN categorias_movimientos_financieros cm ON cf.id_categoria_movimiento_financiero = cm.id
                 INNER JOIN tipos_movimientos_financieros tm ON cm.id_tipo_movimiento = tm.id
                 WHERE cm.id_tipo_movimiento = :id_tipo
+                AND cf.id_tenant = :id_tenant
                 ORDER BY cm.orden, cf.nombre
             ");
             $sentence->bindParam(':id_tipo', $id_tipo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -101,13 +109,16 @@ class ConceptosFinancieros {
 
             $sentence = $db->prepare("
                 INSERT INTO conceptos_financieros 
-                (id_categoria_movimiento_financiero, nombre, icono, requiere_detalle, descripcion) 
-                VALUES (:id_categoria_movimiento_financiero, :nombre, :icono, :requiere_detalle, :descripcion)
+                (id, id_tenant, id_categoria_movimiento_financiero, nombre, icono, requiere_detalle, descripcion) 
+                VALUES (:id, :id_tenant, :id_categoria_movimiento_financiero, :nombre, :icono, :requiere_detalle, :descripcion)
             ");
 
             $icono = $data['icono'] ?? '?';
             $requiere_detalle = $data['requiere_detalle'] ?? 0;
+            $id = Uuid::generar();
 
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_categoria_movimiento_financiero', $data['id_categoria_movimiento_financiero']);
             $sentence->bindParam(':nombre', $data['nombre']);
             $sentence->bindParam(':icono', $icono);
@@ -115,7 +126,6 @@ class ConceptosFinancieros {
             $sentence->bindParam(':descripcion', $data['descripcion']);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
             
             Flight::json(array('id' => $id));
         } catch (Exception $e) {
@@ -133,7 +143,7 @@ class ConceptosFinancieros {
                 UPDATE conceptos_financieros 
                 SET id_categoria_movimiento_financiero = :id_categoria_movimiento_financiero, 
                     nombre = :nombre, icono = :icono, requiere_detalle = :requiere_detalle, descripcion = :descripcion
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $icono = $data['icono'] ?? '?';
@@ -145,6 +155,7 @@ class ConceptosFinancieros {
             $sentence->bindParam(':icono', $icono);
             $sentence->bindParam(':requiere_detalle', $requiere_detalle);
             $sentence->bindParam(':descripcion', $data['descripcion']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             self::getById($data['id']);
@@ -159,8 +170,9 @@ class ConceptosFinancieros {
             $db = Flight::db();
             $id = Flight::request()->data['id'];
 
-            $sentence = $db->prepare("DELETE FROM conceptos_financieros WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM conceptos_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id));

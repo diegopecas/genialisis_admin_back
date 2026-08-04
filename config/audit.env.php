@@ -3,10 +3,10 @@
 // Config de auditoría - GENIALISIS
 // Por ahora comparte la misma BD de auditoría que Psyncronia.
 // ===================================================================
-define('DB_AUDIT_HOST', '92.205.2.161');
-define('DB_AUDIT_NAME', 'psyncronia_auditoria_prod');
-define('DB_AUDIT_USERNAME', 'usr-psyncronia-auditoria-prod');
-define('DB_AUDIT_PASSWORD', 'qQ^St%[;mW(L;65j');
+define('DB_AUDIT_HOST', '132.148.181.209');
+define('DB_AUDIT_NAME', 'g_auditoria_prod');
+define('DB_AUDIT_USERNAME', 'usr_g_auditoria_prod');
+define('DB_AUDIT_PASSWORD', 'HWKayBss0jGXw}J(');
 define('DB_AUDIT_CHARSET', 'utf8mb4');
 define('DB_AUDIT_DSN', 'mysql:host=' . DB_AUDIT_HOST . ';dbname=' . DB_AUDIT_NAME . ';charset=' . DB_AUDIT_CHARSET);
 

@@ -97,9 +97,9 @@ class IaMensajes
                 SELECT p.primer_nombre, p.fecha_nacimiento 
                 FROM usuarios u 
                 INNER JOIN personas p ON u.id_persona = p.id 
-                WHERE u.id = ?
+                WHERE u.id = ? AND u.id_tenant = ?
             ");
-                $stmt->execute([$usuarioId]);
+                $stmt->execute([$usuarioId, TenantContext::id()]);
                 $persona = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($persona && $persona['fecha_nacimiento']) {
@@ -276,7 +276,8 @@ class IaMensajes
      */
     private static function obtenerConfiguracion($db)
     {
-        $stmt = $db->prepare("SELECT clave, valor FROM ia_configuracion");
+        $stmt = $db->prepare("SELECT clave, valor FROM ia_configuracion WHERE id_tenant = :id_tenant");
+        $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -293,7 +294,8 @@ class IaMensajes
      */
     private static function verificarYResetearContador($db)
     {
-        $stmt = $db->prepare("SELECT valor FROM ia_configuracion WHERE clave = 'fecha_ultimo_reset'");
+        $stmt = $db->prepare("SELECT valor FROM ia_configuracion WHERE clave = 'fecha_ultimo_reset' AND id_tenant = :id_tenant");
+        $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $stmt->execute();
         $fechaUltimoReset = $stmt->fetchColumn();
 
@@ -303,11 +305,11 @@ class IaMensajes
             error_log("Reseteando contador - Nuevo día detectado");
 
             // Resetear contador
-            $db->prepare("UPDATE ia_configuracion SET valor = '0' WHERE clave = 'mensajes_generados_hoy'")->execute();
+            $db->prepare("UPDATE ia_configuracion SET valor = '0' WHERE clave = 'mensajes_generados_hoy' AND id_tenant = :id_tenant")->execute([':id_tenant' => TenantContext::id()]);
 
             // Actualizar fecha
-            $db->prepare("UPDATE ia_configuracion SET valor = ? WHERE clave = 'fecha_ultimo_reset'")
-                ->execute([$fechaHoy]);
+            $db->prepare("UPDATE ia_configuracion SET valor = ? WHERE clave = 'fecha_ultimo_reset' AND id_tenant = ?")
+                ->execute([$fechaHoy, TenantContext::id()]);
         }
     }
 
@@ -316,7 +318,7 @@ class IaMensajes
      */
     private static function incrementarContador($db)
     {
-        $db->prepare("UPDATE ia_configuracion SET valor = valor + 1 WHERE clave = 'mensajes_generados_hoy'")->execute();
+        $db->prepare("UPDATE ia_configuracion SET valor = valor + 1 WHERE clave = 'mensajes_generados_hoy' AND id_tenant = :id_tenant")->execute([':id_tenant' => TenantContext::id()]);
     }
 
     /**
@@ -411,8 +413,8 @@ class IaMensajes
                 return;
             }
 
-            $stmt = $db->prepare("UPDATE ia_configuracion SET valor = ? WHERE clave = ?");
-            $stmt->execute([$valor, $clave]);
+            $stmt = $db->prepare("UPDATE ia_configuracion SET valor = ? WHERE clave = ? AND id_tenant = ?");
+            $stmt->execute([$valor, $clave, TenantContext::id()]);
 
             Flight::json([
                 'success' => true,

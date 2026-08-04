@@ -13,8 +13,8 @@ class AccesosRapidos
                 return;
             }
 
-            $sentence = $db->prepare("INSERT INTO accesos_rapidos (id_usuario, ruta, label, icono, conteo, ultima_visita)
-                VALUES (:id_usuario, :ruta, :label, :icono, :conteo, NOW())
+            $sentence = $db->prepare("INSERT INTO accesos_rapidos (id, id_tenant, id_usuario, ruta, label, icono, conteo, ultima_visita)
+                VALUES (:id, :id_tenant, :id_usuario, :ruta, :label, :icono, :conteo, NOW())
                 ON DUPLICATE KEY UPDATE
                 conteo = conteo + :conteo_update,
                 label = :label_update,
@@ -29,6 +29,9 @@ class AccesosRapidos
                 $icono = isset($acceso['icono']) ? $acceso['icono'] : '📌';
                 $conteo = intval($acceso['conteo']);
 
+                $idAcceso = Uuid::generar();
+                $sentence->bindValue(':id', $idAcceso);
+                $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentence->bindParam(':id_usuario', $id_usuario);
                 $sentence->bindParam(':ruta', $ruta);
                 $sentence->bindParam(':label', $label);
@@ -63,10 +66,12 @@ class AccesosRapidos
             $sentence = $db->prepare("SELECT id, ruta, label, icono, conteo, es_fijo, ultima_visita
                 FROM accesos_rapidos
                 WHERE id_usuario = :id_usuario
+                AND id_tenant = :id_tenant
                 ORDER BY es_fijo DESC, conteo DESC, ultima_visita DESC
                 LIMIT :limite");
             $sentence->bindParam(':id_usuario', $id_usuario);
             $sentence->bindParam(':limite', $limite, PDO::PARAM_INT);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
@@ -88,9 +93,10 @@ class AccesosRapidos
                 return;
             }
 
-            $sentence = $db->prepare("UPDATE accesos_rapidos SET es_fijo = :es_fijo WHERE id = :id");
+            $sentence = $db->prepare("UPDATE accesos_rapidos SET es_fijo = :es_fijo WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':es_fijo', $es_fijo);
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id, 'es_fijo' => $es_fijo, 'message' => 'Acceso actualizado'));
@@ -114,13 +120,16 @@ class AccesosRapidos
                 return;
             }
 
-            $sentence = $db->prepare("INSERT INTO accesos_rapidos (id_usuario, ruta, label, icono, conteo, es_fijo, ultima_visita)
-                VALUES (:id_usuario, :ruta, :label, :icono, 0, 1, NOW())
+            $idAcceso = Uuid::generar();
+            $sentence = $db->prepare("INSERT INTO accesos_rapidos (id, id_tenant, id_usuario, ruta, label, icono, conteo, es_fijo, ultima_visita)
+                VALUES (:id, :id_tenant, :id_usuario, :ruta, :label, :icono, 0, 1, NOW())
                 ON DUPLICATE KEY UPDATE
                 es_fijo = 1,
                 label = :label_update,
                 icono = :icono_update,
                 ultima_visita = NOW()");
+            $sentence->bindValue(':id', $idAcceso);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_usuario', $id_usuario);
             $sentence->bindParam(':ruta', $ruta);
             $sentence->bindParam(':label', $label);
@@ -129,15 +138,13 @@ class AccesosRapidos
             $sentence->bindParam(':icono_update', $icono);
             $sentence->execute();
 
-            $id = $db->lastInsertId();
-            if (!$id) {
-                $getId = $db->prepare("SELECT id FROM accesos_rapidos WHERE id_usuario = :id_usuario AND ruta = :ruta");
-                $getId->bindParam(':id_usuario', $id_usuario);
-                $getId->bindParam(':ruta', $ruta);
-                $getId->execute();
-                $row = $getId->fetch();
-                $id = $row ? $row['id'] : null;
-            }
+            $getId = $db->prepare("SELECT id FROM accesos_rapidos WHERE id_usuario = :id_usuario AND ruta = :ruta AND id_tenant = :id_tenant");
+            $getId->bindParam(':id_usuario', $id_usuario);
+            $getId->bindParam(':ruta', $ruta);
+            $getId->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $getId->execute();
+            $row = $getId->fetch();
+            $id = $row ? $row['id'] : null;
 
             Flight::json(array('id' => $id, 'message' => 'Acceso fijado correctamente'));
         } catch (Exception $e) {

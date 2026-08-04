@@ -148,11 +148,14 @@ class NominasCalculo
                 foreach ($col_data['conceptos'] as $concepto) {
                     $stmt = $db->prepare("
                         INSERT INTO nominas_detalle (
-                            id_nomina, id_colaborador, id_concepto, 
+                            id, id_tenant, id_nomina, id_colaborador, id_concepto, 
                             cantidad, valor_unitario, valor_total
-                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ");
+                    $idDet = Uuid::generar();
                     $stmt->execute([
+                        $idDet,
+                        TenantContext::id(),
                         $id_nomina,
                         $id_colaborador,
                         $concepto['id_concepto'],
@@ -226,9 +229,9 @@ class NominasCalculo
         $stmt = $db->prepare("
             SELECT codigo, valor 
             FROM nomina_configuracion 
-            WHERE anio = ? AND activo = 1
+            WHERE anio = ? AND activo = 1 AND id_tenant = ?
         ");
-        $stmt->execute([$anio]);
+        $stmt->execute([$anio, TenantContext::id()]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         $config = [];
@@ -250,9 +253,9 @@ class NominasCalculo
             FROM colaboradores c
             INNER JOIN personas p ON p.id = c.id_persona
             LEFT JOIN tipos_contrato tc ON tc.id = c.id_tipo_contrato
-            WHERE c.id = ? AND c.activo = 1
+            WHERE c.id = ? AND c.activo = 1 AND c.id_tenant = ?
         ");
-        $stmt->execute([$id_colaborador]);
+        $stmt->execute([$id_colaborador, TenantContext::id()]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
     
@@ -377,13 +380,15 @@ class NominasCalculo
             SELECT COALESCE(SUM(ac.minutos_totales * tac.valor_hora / 60), 0) as total
             FROM actividades_colaboradores ac
             INNER JOIN tipos_actividades_colaboradores tac ON tac.id = ac.id_tipo_actividad
+            INNER JOIN categorias_actividades ca ON ca.id = tac.id_categoria AND ca.id_tenant = tac.id_tenant
             WHERE ac.id_colaborador = ?
-              AND tac.id_categoria = 2
+              AND ca.codigo = 'HORA_ADICIONAL'
               AND ac.id_estado IN (2, 5)
               AND ac.fecha_hora_inicio >= ?
               AND ac.fecha_hora_fin <= ?
+              AND ac.id_tenant = ?
         ");
-        $stmt->execute([$id_colaborador, $fecha_inicio, $fecha_fin]);
+        $stmt->execute([$id_colaborador, $fecha_inicio, $fecha_fin, TenantContext::id()]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return floatval($row['total'] ?? 0);
     }
@@ -394,13 +399,15 @@ class NominasCalculo
             SELECT COUNT(*) as total
             FROM actividades_colaboradores ac
             INNER JOIN tipos_actividades_colaboradores tac ON tac.id = ac.id_tipo_actividad
+            INNER JOIN categorias_actividades ca ON ca.id = tac.id_categoria AND ca.id_tenant = tac.id_tenant
             WHERE ac.id_colaborador = ?
-              AND tac.id_categoria = 3
+              AND ca.codigo = 'VACACIONES'
               AND ac.id_estado IN (2, 5)
               AND ac.fecha_hora_inicio >= ?
               AND ac.fecha_hora_fin <= ?
+              AND ac.id_tenant = ?
         ");
-        $stmt->execute([$id_colaborador, $fecha_inicio, $fecha_fin]);
+        $stmt->execute([$id_colaborador, $fecha_inicio, $fecha_fin, TenantContext::id()]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return intval($row['total']) > 0;
     }
@@ -421,9 +428,10 @@ class NominasCalculo
               AND cpc.saldo > 0
               AND cpc.anulado = 0
               AND DATE_ADD(cpc.fecha, INTERVAL 30 DAY) <= ?
+              AND cpc.id_tenant = ?
             ORDER BY cpc.fecha ASC
         ");
-        $stmt->execute([$id_persona, $fecha_corte]);
+        $stmt->execute([$id_persona, $fecha_corte, TenantContext::id()]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
@@ -441,17 +449,18 @@ class NominasCalculo
             WHERE p.id_colaborador = ?
               AND pc.id_estado = 1
               AND p.id_tipo_descuento IN (1, 3)
+              AND pc.id_tenant = ?
             ORDER BY pc.fecha_programada ASC
         ");
-        $stmt->execute([$id_colaborador]);
+        $stmt->execute([$id_colaborador, TenantContext::id()]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     private static function procesarProductosServicios($db, $id_nomina, $id_colaborador, $ids_productos)
     {
         // Obtener id_persona del colaborador
-        $stmt = $db->prepare("SELECT id_persona FROM colaboradores WHERE id = ?");
-        $stmt->execute([$id_colaborador]);
+        $stmt = $db->prepare("SELECT id_persona FROM colaboradores WHERE id = ? AND id_tenant = ?");
+        $stmt->execute([$id_colaborador, TenantContext::id()]);
         $colaborador = $stmt->fetch(PDO::FETCH_ASSOC);
         $id_persona = $colaborador['id_persona'];
         
@@ -461,52 +470,57 @@ class NominasCalculo
             SELECT SUM(saldo) as total
             FROM cuentas_por_cobrar
             WHERE id IN ($placeholders)
+              AND id_tenant = ?
         ");
-        $stmt->execute($ids_productos);
+        $stmt->execute(array_merge($ids_productos, [TenantContext::id()]));
         $total = floatval($stmt->fetch(PDO::FETCH_ASSOC)['total']);
         
         // Crear pago recibido (tipo 7 = Efectivo - Nómina)
         $stmt = $db->prepare("
             INSERT INTO pagos_recibidos (
+                id, id_tenant,
                 id_estudiante, id_colaborador, id_acudiente,
                 fecha, id_tipo_pago, valor_recibido, 
                 observaciones, id_usuario_registro
-            ) VALUES (NULL, ?, NULL, NOW(), 7, ?, 'Descuento nómina', 1)
+            ) VALUES (?, ?, NULL, ?, NULL, NOW(), 7, ?, 'Descuento nómina', 1)
         ");
-        $stmt->execute([$id_colaborador, $total]);
-        $id_pago_recibido = $db->lastInsertId();
+        $idPagoRecibido = Uuid::generar();
+        $stmt->execute([$idPagoRecibido, TenantContext::id(), $id_colaborador, $total]);
+        $id_pago_recibido = $idPagoRecibido;
         
         // Aplicar pago a cada cuenta
         foreach ($ids_productos as $id_cuenta) {
             // Obtener saldo de la cuenta
-            $stmt = $db->prepare("SELECT saldo FROM cuentas_por_cobrar WHERE id = ?");
-            $stmt->execute([$id_cuenta]);
+            $stmt = $db->prepare("SELECT saldo FROM cuentas_por_cobrar WHERE id = ? AND id_tenant = ?");
+            $stmt->execute([$id_cuenta, TenantContext::id()]);
             $saldo = floatval($stmt->fetch(PDO::FETCH_ASSOC)['saldo']);
             
             // Insertar en cuenta_pagada
             $stmt = $db->prepare("
                 INSERT INTO cuenta_pagada (
-                    id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha
-                ) VALUES (?, ?, ?, NOW())
+                    id, id_tenant, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha
+                ) VALUES (?, ?, ?, ?, ?, NOW())
             ");
-            $stmt->execute([$id_cuenta, $id_pago_recibido, $saldo]);
+            $idCuentaPagada = Uuid::generar();
+            $stmt->execute([$idCuentaPagada, TenantContext::id(), $id_cuenta, $id_pago_recibido, $saldo]);
             
             // Actualizar saldo de la cuenta
             $stmt = $db->prepare("
                 UPDATE cuentas_por_cobrar 
                 SET saldo = 0, valor_pagado = valor
-                WHERE id = ?
+                WHERE id = ? AND id_tenant = ?
             ");
-            $stmt->execute([$id_cuenta]);
+            $stmt->execute([$id_cuenta, TenantContext::id()]);
         }
         
         // Registrar en nominas_pagos para trazabilidad
         $stmt = $db->prepare("
             INSERT INTO nominas_pagos (
-                id_nomina, id_colaborador, id_pago_recibido
-            ) VALUES (?, ?, ?)
+                id, id_tenant, id_nomina, id_colaborador, id_pago_recibido
+            ) VALUES (?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$id_nomina, $id_colaborador, $id_pago_recibido]);
+        $idNominaPago = Uuid::generar();
+        $stmt->execute([$idNominaPago, TenantContext::id(), $id_nomina, $id_colaborador, $id_pago_recibido]);
         
         return count($ids_productos);
     }
@@ -518,19 +532,22 @@ class NominasCalculo
             $stmt = $db->prepare("
                 SELECT id_prestamo, monto_cuota
                 FROM prestamos_cuotas
-                WHERE id = ?
+                WHERE id = ? AND id_tenant = ?
             ");
-            $stmt->execute([$id_cuota]);
+            $stmt->execute([$id_cuota, TenantContext::id()]);
             $cuota = $stmt->fetch(PDO::FETCH_ASSOC);
             
             // Registrar pago
             $stmt = $db->prepare("
                 INSERT INTO prestamos_pagos (
-                    id_prestamo, id_cuota, id_nomina, 
+                    id, id_tenant, id_prestamo, id_cuota, id_nomina, 
                     fecha_pago, monto_pagado, id_tipo_pago
-                ) VALUES (?, ?, ?, NOW(), ?, 1)
+                ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 1)
             ");
+            $idPP = Uuid::generar();
             $stmt->execute([
+                $idPP,
+                TenantContext::id(),
                 $cuota['id_prestamo'],
                 $id_cuota,
                 $id_nomina,
@@ -541,9 +558,9 @@ class NominasCalculo
             $stmt = $db->prepare("
                 UPDATE prestamos_cuotas
                 SET id_estado = 2, fecha_pago = NOW()
-                WHERE id = ?
+                WHERE id = ? AND id_tenant = ?
             ");
-            $stmt->execute([$id_cuota]);
+            $stmt->execute([$id_cuota, TenantContext::id()]);
         }
         
         return count($ids_cuotas);
@@ -555,9 +572,9 @@ class NominasCalculo
         $stmt = $db->prepare("
             SELECT fecha_inicio, fecha_fin
             FROM nominas
-            WHERE id = ?
+            WHERE id = ? AND id_tenant = ?
         ");
-        $stmt->execute([$id_nomina]);
+        $stmt->execute([$id_nomina, TenantContext::id()]);
         $nomina = $stmt->fetch(PDO::FETCH_ASSOC);
         
         // Actualizar actividades a estado 4 (Contabilizado)
@@ -568,11 +585,13 @@ class NominasCalculo
               AND id_estado IN (2, 5)
               AND fecha_hora_inicio >= ?
               AND fecha_hora_fin <= ?
+              AND id_tenant = ?
         ");
         $stmt->execute([
             $id_colaborador,
             $nomina['fecha_inicio'],
-            $nomina['fecha_fin']
+            $nomina['fecha_fin'],
+            TenantContext::id()
         ]);
         
         return $stmt->rowCount();

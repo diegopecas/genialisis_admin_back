@@ -11,7 +11,7 @@ class NominasDetalle {
             $stmt = $db->prepare("
                 SELECT 
                     nd.*,
-                    CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_colaborador,
+                    CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_colaborador,
                     cn.codigo as codigo_concepto,
                     cn.nombre as nombre_concepto,
                     cn.es_suma
@@ -20,10 +20,11 @@ class NominasDetalle {
                 INNER JOIN personas p ON c.id_persona = p.id
                 INNER JOIN conceptos_nomina cn ON nd.id_concepto = cn.id
                 WHERE nd.id_nomina = :id_nomina
+                  AND nd.id_tenant = :id_tenant
                 ORDER BY p.primer_nombre, p.primer_apellido, cn.orden ASC
             ");
             
-            $stmt->execute(['id_nomina' => $idNomina]);
+            $stmt->execute(['id_nomina' => $idNomina, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -46,7 +47,7 @@ class NominasDetalle {
             $stmt = $db->prepare("
                 SELECT 
                     nd.id_colaborador,
-                    CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_colaborador,
+                    CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_colaborador,
                     c.documento,
                     SUM(CASE WHEN cn.es_suma = 1 THEN nd.valor_total ELSE 0 END) as total_devengado,
                     SUM(CASE WHEN cn.es_suma = 0 THEN nd.valor_total ELSE 0 END) as total_deducciones,
@@ -56,11 +57,12 @@ class NominasDetalle {
                 INNER JOIN personas p ON c.id_persona = p.id
                 INNER JOIN conceptos_nomina cn ON nd.id_concepto = cn.id
                 WHERE nd.id_nomina = :id_nomina
+                  AND nd.id_tenant = :id_tenant
                 GROUP BY nd.id_colaborador, nombre_colaborador, c.documento
                 ORDER BY nombre_colaborador ASC
             ");
             
-            $stmt->execute(['id_nomina' => $idNomina]);
+            $stmt->execute(['id_nomina' => $idNomina, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -91,12 +93,14 @@ class NominasDetalle {
                 INNER JOIN conceptos_nomina cn ON nd.id_concepto = cn.id
                 WHERE nd.id_nomina = :id_nomina 
                   AND nd.id_colaborador = :id_colaborador
+                  AND nd.id_tenant = :id_tenant
                 ORDER BY cn.orden ASC
             ");
             
             $stmt->execute([
                 'id_nomina' => $idNomina,
-                'id_colaborador' => $idColaborador
+                'id_colaborador' => $idColaborador,
+                'id_tenant' => TenantContext::id()
             ]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -120,7 +124,7 @@ class NominasDetalle {
             $stmt = $db->prepare("
                 SELECT 
                     nd.*,
-                    CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_colaborador,
+                    CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_colaborador,
                     cn.codigo as codigo_concepto,
                     cn.nombre as nombre_concepto,
                     cn.es_suma
@@ -129,9 +133,10 @@ class NominasDetalle {
                 INNER JOIN personas p ON c.id_persona = p.id
                 INNER JOIN conceptos_nomina cn ON nd.id_concepto = cn.id
                 WHERE nd.id = :id
+                  AND nd.id_tenant = :id_tenant
             ");
             
-            $stmt->execute(['id' => $id]);
+            $stmt->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -165,6 +170,8 @@ class NominasDetalle {
             
             $stmt = $db->prepare("
                 INSERT INTO nominas_detalle (
+                    id,
+                    id_tenant,
                     id_nomina,
                     id_colaborador,
                     id_concepto,
@@ -174,6 +181,8 @@ class NominasDetalle {
                     observaciones,
                     id_contabilizacion
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :id_nomina,
                     :id_colaborador,
                     :id_concepto,
@@ -185,7 +194,10 @@ class NominasDetalle {
                 )
             ");
             
+            $idDetalle = Uuid::generar();
             $stmt->execute([
+                'id' => $idDetalle,
+                'id_tenant' => TenantContext::id(),
                 'id_nomina' => $data['id_nomina'],
                 'id_colaborador' => $data['id_colaborador'],
                 'id_concepto' => $data['id_concepto'],
@@ -199,7 +211,7 @@ class NominasDetalle {
             Flight::json([
                 'success' => true,
                 'message' => 'Detalle de nómina creado correctamente',
-                'id' => $db->lastInsertId()
+                'id' => $idDetalle
             ], 200);
             
         } catch (Exception $e) {
@@ -229,6 +241,8 @@ class NominasDetalle {
             
             $stmt = $db->prepare("
                 INSERT INTO nominas_detalle (
+                    id,
+                    id_tenant,
                     id_nomina,
                     id_colaborador,
                     id_concepto,
@@ -238,6 +252,8 @@ class NominasDetalle {
                     observaciones,
                     id_contabilizacion
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :id_nomina,
                     :id_colaborador,
                     :id_concepto,
@@ -259,7 +275,10 @@ class NominasDetalle {
                 $cantidad = $detalle['cantidad'] ?? 1;
                 $valorTotal = $cantidad * $detalle['valor_unitario'];
                 
+                $idDetalle = Uuid::generar();
                 $stmt->execute([
+                    'id' => $idDetalle,
+                    'id_tenant' => TenantContext::id(),
                     'id_nomina' => $detalle['id_nomina'],
                     'id_colaborador' => $detalle['id_colaborador'],
                     'id_concepto' => $detalle['id_concepto'],
@@ -320,11 +339,12 @@ class NominasDetalle {
                     valor_total = :valor_total,
                     observaciones = :observaciones,
                     id_contabilizacion = :id_contabilizacion
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
             
             $stmt->execute([
                 'id' => $data['id'],
+                'id_tenant' => TenantContext::id(),
                 'id_concepto' => $data['id_concepto'],
                 'cantidad' => $cantidad,
                 'valor_unitario' => $data['valor_unitario'],
@@ -360,8 +380,8 @@ class NominasDetalle {
             
             $db = Flight::db();
             
-            $stmt = $db->prepare("DELETE FROM nominas_detalle WHERE id = :id");
-            $stmt->execute(['id' => $data['id']]);
+            $stmt = $db->prepare("DELETE FROM nominas_detalle WHERE id = :id AND id_tenant = :id_tenant");
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,
@@ -390,8 +410,8 @@ class NominasDetalle {
             
             $db = Flight::db();
             
-            $stmt = $db->prepare("DELETE FROM nominas_detalle WHERE id_nomina = :id_nomina");
-            $stmt->execute(['id_nomina' => $data['id_nomina']]);
+            $stmt = $db->prepare("DELETE FROM nominas_detalle WHERE id_nomina = :id_nomina AND id_tenant = :id_tenant");
+            $stmt->execute(['id_nomina' => $data['id_nomina'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,

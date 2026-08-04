@@ -10,9 +10,11 @@ class TiposPersonasDocumentos
             FROM tipos_personas_documentos tpd
             INNER JOIN tipos_personas tp ON tpd.id_tipo_persona = tp.id
             WHERE tpd.id_tipo_documento = :id_tipo_documento
+            AND tpd.id_tenant = :id_tenant
             ORDER BY tp.id
         ");
         $sentence->bindParam(':id_tipo_documento', $idTipoDocumento);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -31,17 +33,19 @@ class TiposPersonasDocumentos
         $deleteStmt = $db->prepare("
             DELETE FROM tipos_personas_documentos 
             WHERE id_tipo_documento = :id_tipo_documento
+            AND id_tenant = :id_tenant
         ");
         $deleteStmt->bindParam(':id_tipo_documento', $idTipoDocumento);
+        $deleteStmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $deleteStmt->execute();
 
         // Insertar las nuevas asociaciones
         if (!empty($asociaciones)) {
             $insertStmt = $db->prepare("
                 INSERT INTO tipos_personas_documentos 
-                    (id_tipo_persona, id_tipo_documento, obligatorio, orden)
+                    (id, id_tenant, id_tipo_persona, id_tipo_documento, obligatorio, orden)
                 VALUES 
-                    (:id_tipo_persona, :id_tipo_documento, :obligatorio, :orden)
+                    (:id, :id_tenant, :id_tipo_persona, :id_tipo_documento, :obligatorio, :orden)
             ");
 
             foreach ($asociaciones as $asoc) {
@@ -49,6 +53,9 @@ class TiposPersonasDocumentos
                 $obligatorio = $asoc['obligatorio'];
                 $orden = $asoc['orden'];
                 
+                $idAsoc = Uuid::generar();
+                $insertStmt->bindValue(':id', $idAsoc);
+                $insertStmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $insertStmt->bindParam(':id_tipo_persona', $idTipoPersona);
                 $insertStmt->bindParam(':id_tipo_documento', $idTipoDocumento);
                 $insertStmt->bindParam(':obligatorio', $obligatorio);

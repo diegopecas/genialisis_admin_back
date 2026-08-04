@@ -15,10 +15,11 @@ class TiposContrato {
                     descripcion,
                     activo
                 FROM tipos_contrato
+                WHERE id_tenant = :id_tenant
                 ORDER BY nombre ASC, nombre ASC
             ");
             
-            $stmt->execute();
+            $stmt->execute(['id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -46,10 +47,11 @@ class TiposContrato {
                     activo
                 FROM tipos_contrato
                 WHERE activo = 1
+                AND id_tenant = :id_tenant
                 ORDER BY nombre ASC
             ");
             
-            $stmt->execute();
+            $stmt->execute(['id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -77,9 +79,10 @@ class TiposContrato {
                     activo
                 FROM tipos_contrato
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
             
-            $stmt->execute(['id' => $id]);
+            $stmt->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -102,9 +105,12 @@ class TiposContrato {
             }
             
             $db = Flight::db();
+            $id = Uuid::generar();
             
             $stmt = $db->prepare("
                 INSERT INTO tipos_contrato (
+                    id,
+                    id_tenant,
                     codigo,
                     nombre,
                     aplica_nomina,
@@ -112,6 +118,8 @@ class TiposContrato {
                     descripcion,
                     activo
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :codigo,
                     :nombre,
                     :aplica_nomina,
@@ -122,6 +130,8 @@ class TiposContrato {
             ");
             
             $stmt->execute([
+                'id' => $id,
+                'id_tenant' => TenantContext::id(),
                 'codigo' => $data['codigo'],
                 'nombre' => $data['nombre'],
                 'aplica_nomina' => $data['aplica_nomina'] ?? 1,
@@ -133,7 +143,7 @@ class TiposContrato {
             Flight::json([
                 'success' => true,
                 'message' => 'Tipo de contrato creado correctamente',
-                'id' => $db->lastInsertId()
+                'id' => $id
             ], 200);
             
         } catch (Exception $e) {
@@ -165,10 +175,12 @@ class TiposContrato {
                     descripcion = :descripcion,
                     activo = :activo
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
             
             $stmt->execute([
                 'id' => $data['id'],
+                'id_tenant' => TenantContext::id(),
                 'codigo' => $data['codigo'],
                 'nombre' => $data['nombre'],
                 'aplica_nomina' => $data['aplica_nomina'],
@@ -201,8 +213,8 @@ class TiposContrato {
             
             $db = Flight::db();
             
-            $stmt = $db->prepare("DELETE FROM tipos_contrato WHERE id = :id");
-            $stmt->execute(['id' => $data['id']]);
+            $stmt = $db->prepare("DELETE FROM tipos_contrato WHERE id = :id AND id_tenant = :id_tenant");
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,

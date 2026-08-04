@@ -24,8 +24,10 @@ class Productos
                                     LEFT JOIN productos_proveedores pp ON p.id = pp.id_producto AND pp.activo = 1
                                     LEFT JOIN proveedores pr ON pp.id_proveedor = pr.id
                                     LEFT JOIN personas per ON pr.id_persona = per.id
+                                    WHERE p.id_tenant = :id_tenant
                                     GROUP BY p.id
                                     ORDER BY p.fecha_registro DESC");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -51,8 +53,10 @@ class Productos
                                     LEFT JOIN proveedores pr ON pp.id_proveedor = pr.id
                                     LEFT JOIN personas per ON pr.id_persona = per.id
                                     WHERE p.activo = 1
+                                    AND p.id_tenant = :id_tenant
                                     GROUP BY p.id
                                     ORDER BY p.nombre");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -89,9 +93,11 @@ class Productos
                                     LEFT JOIN proveedores pr ON pp.id_proveedor = pr.id
                                     LEFT JOIN personas per ON pr.id_persona = per.id
                                     WHERE p.id = :id
+                                    AND p.id_tenant = :id_tenant
                                     GROUP BY p.id
                                     ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -116,6 +122,8 @@ class Productos
             error_log("Datos recibidos para crear producto: nombre=$nombre, tipo=$id_tipo_producto, imagen=$imagen");
 
             $sentence = $db->prepare("INSERT INTO productos(
+                                        id,
+                                        id_tenant,
                                         id_tipo_producto,
                                         nombre,
                                         descripcion,
@@ -127,6 +135,8 @@ class Productos
                                         activo,
                                         fecha_registro
                                     ) VALUES (
+                                        :id,
+                                        :id_tenant,
                                         :id_tipo_producto,
                                         :nombre,
                                         :descripcion,
@@ -139,6 +149,9 @@ class Productos
                                         NOW()
                                     )");
 
+            $idProd = Uuid::generar();
+            $sentence->bindValue(':id', $idProd);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_tipo_producto', $id_tipo_producto);
             $sentence->bindParam(':nombre', $nombre);
             $sentence->bindParam(':descripcion', $descripcion);
@@ -149,7 +162,7 @@ class Productos
             $sentence->bindParam(':precio_unitario', $precio_unitario);
             $sentence->execute();
 
-            $id = $db->lastInsertId();
+            $id = $idProd;
 
             if ($id == 0) {
                 error_log("Error: El ID insertado es 0.");
@@ -191,7 +204,7 @@ class Productos
                             stock_minimo = :stock_minimo,
                             precio_unitario = :precio_unitario,
                             activo = :activo
-                            WHERE id = :id");
+                            WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id_tipo_producto', $id_tipo_producto);
         $sentence->bindParam(':nombre', $nombre);
         $sentence->bindParam(':descripcion', $descripcion);
@@ -202,6 +215,7 @@ class Productos
         $sentence->bindParam(':precio_unitario', $precio_unitario);
         $sentence->bindParam(':activo', $activo);
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         self::getById($id);
@@ -213,8 +227,9 @@ class Productos
 
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("DELETE FROM productos WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM productos WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         Flight::json(array('id' => $id));
@@ -230,9 +245,10 @@ class Productos
 
         $sentence = $db->prepare("SELECT COUNT(*) as total FROM productos 
                                  WHERE LOWER(nombre) = LOWER(:nombre) 
-                                 AND id != :id");
+                                 AND id != :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':nombre', $nombre);
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetch();
 
@@ -244,8 +260,9 @@ class Productos
         $db = Flight::db();
         $id = Flight::request()->data['id'];
 
-        $sentence = $db->prepare("SELECT imagen FROM productos WHERE id = :id");
+        $sentence = $db->prepare("SELECT imagen FROM productos WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $producto = $sentence->fetch();
 
@@ -267,9 +284,10 @@ class Productos
             FROM productos p
             LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
             INNER JOIN productos_proveedores pp ON p.id = pp.id_producto
-            WHERE pp.id_proveedor = :id_proveedor AND pp.activo = 1 AND p.activo = 1
+            WHERE pp.id_proveedor = :id_proveedor AND pp.activo = 1 AND p.activo = 1 AND p.id_tenant = :id_tenant
             ORDER BY p.nombre");
         $sentence->bindParam(':id_proveedor', $id_proveedor);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -290,9 +308,10 @@ class Productos
             LEFT JOIN productos_proveedores pp ON p.id = pp.id_producto AND pp.activo = 1
             LEFT JOIN proveedores pr ON pp.id_proveedor = pr.id
             LEFT JOIN personas per ON pr.id_persona = per.id
-            WHERE p.stock_actual <= p.stock_minimo AND p.activo = 1
+            WHERE p.stock_actual <= p.stock_minimo AND p.activo = 1 AND p.id_tenant = :id_tenant
             GROUP BY p.id
             ORDER BY (p.stock_actual / NULLIF(p.stock_minimo, 0))");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -318,9 +337,10 @@ class Productos
         INNER JOIN proveedores pr ON pp.id_proveedor = pr.id
         INNER JOIN personas per ON pr.id_persona = per.id
         LEFT JOIN tipos_proveedor tp ON pr.id_tipo_proveedor = tp.id
-        WHERE pp.id_producto = :id_producto AND pp.activo = 1
+        WHERE pp.id_producto = :id_producto AND pp.activo = 1 AND pp.id_tenant = :id_tenant
         ORDER BY nombre_proveedor");
         $sentence->bindParam(':id_producto', $id_producto);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -336,14 +356,17 @@ class Productos
 
         try {
             $sentence = $db->prepare("INSERT INTO productos_proveedores(
-                id_producto, id_proveedor, precio_compra, codigo_proveedor, activo
+                id, id_tenant, id_producto, id_proveedor, precio_compra, codigo_proveedor, activo
             ) VALUES (
-                :id_producto, :id_proveedor, :precio_compra, :codigo_proveedor, 1
+                :id, :id_tenant, :id_producto, :id_proveedor, :precio_compra, :codigo_proveedor, 1
             ) ON DUPLICATE KEY UPDATE 
                 precio_compra = VALUES(precio_compra),
                 codigo_proveedor = VALUES(codigo_proveedor),
                 activo = 1");
 
+            $idPP = Uuid::generar();
+            $sentence->bindValue(':id', $idPP);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_producto', $id_producto);
             $sentence->bindParam(':id_proveedor', $id_proveedor);
             $sentence->bindParam(':precio_compra', $precio_compra);
@@ -370,9 +393,10 @@ class Productos
         try {
             $sentence = $db->prepare("UPDATE productos_proveedores 
             SET activo = 0 
-            WHERE id_producto = :id_producto AND id_proveedor = :id_proveedor");
+            WHERE id_producto = :id_producto AND id_proveedor = :id_proveedor AND id_tenant = :id_tenant");
             $sentence->bindParam(':id_producto', $id_producto);
             $sentence->bindParam(':id_proveedor', $id_proveedor);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('success' => true));
@@ -388,9 +412,10 @@ class Productos
         $sentence = $db->prepare("SELECT p.*, um.nombre as nombre_unidad, um.abreviatura as abreviatura_unidad
         FROM productos p
         LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
-        WHERE p.id_tipo_producto = :id_tipo AND p.activo = 1
+        WHERE p.id_tipo_producto = :id_tipo AND p.activo = 1 AND p.id_tenant = :id_tenant
         ORDER BY p.nombre");
         $sentence->bindParam(':id_tipo', $id_tipo);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -399,8 +424,9 @@ class Productos
     public static function getImagenBase64($id)
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT imagen FROM productos WHERE id = :id");
+        $sentence = $db->prepare("SELECT imagen FROM productos WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $producto = $sentence->fetch();
 

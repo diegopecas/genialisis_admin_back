@@ -16,9 +16,11 @@ class MovimientosProductosDetalle
             INNER JOIN productos p ON mpd.id_producto = p.id
             LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
             WHERE mpd.id_movimiento = :id_movimiento
+            AND mpd.id_tenant = :id_tenant
             ORDER BY mpd.id
         ");
         $sentence->bindParam(':id_movimiento', $id_movimiento);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -36,8 +38,10 @@ class MovimientosProductosDetalle
             INNER JOIN productos p ON mpd.id_producto = p.id
             LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
             WHERE mpd.id = :id
+            AND mpd.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -55,8 +59,10 @@ class MovimientosProductosDetalle
             INNER JOIN movimientos_productos mp ON mpd.id_movimiento = mp.id
             INNER JOIN estados_movimientos_productos emp ON mp.id_estado = emp.id
             WHERE mpd.id = :id
+            AND mpd.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $result = $sentence->fetch();
         
@@ -65,8 +71,9 @@ class MovimientosProductosDetalle
             return;
         }
         
-        $sentence = $db->prepare("DELETE FROM movimientos_productos_detalle WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM movimientos_productos_detalle WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         Flight::json(array('id' => $id));

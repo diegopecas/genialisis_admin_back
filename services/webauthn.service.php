@@ -133,8 +133,9 @@ class WebAuthn
             $userData = JWTService::requerirAutenticacion();
 
             $db = Flight::db();
-            $stmt = $db->prepare("SELECT id, usuario, correo_electronico FROM usuarios WHERE id = :id AND activo = 1");
+            $stmt = $db->prepare("SELECT id, usuario, correo_electronico FROM usuarios WHERE id = :id AND activo = 1 AND id_tenant = :id_tenant");
             $stmt->bindParam(':id', $userData->id);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $usuario = $stmt->fetch();
 
@@ -143,8 +144,9 @@ class WebAuthn
                 return;
             }
 
-            $stmtCreds = $db->prepare("SELECT credential_id FROM webauthn_credentials WHERE id_usuario = :id_usuario AND activo = 1");
+            $stmtCreds = $db->prepare("SELECT credential_id FROM webauthn_credentials WHERE id_usuario = :id_usuario AND activo = 1 AND id_tenant = :id_tenant");
             $stmtCreds->bindParam(':id_usuario', $usuario['id']);
+            $stmtCreds->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtCreds->execute();
             $credsExistentes = $stmtCreds->fetchAll(PDO::FETCH_COLUMN);
 
@@ -261,7 +263,10 @@ class WebAuthn
 
             // Guardar credencial en BD del tenant
             $db = Flight::db();
-            $stmt = $db->prepare("INSERT INTO webauthn_credentials (id_usuario, credential_id, public_key, dispositivo) VALUES (:id_usuario, :credential_id, :public_key, :dispositivo)");
+            $stmt = $db->prepare("INSERT INTO webauthn_credentials (id, id_tenant, id_usuario, credential_id, public_key, dispositivo) VALUES (:id, :id_tenant, :id_usuario, :credential_id, :public_key, :dispositivo)");
+            $idWac = Uuid::generar();
+            $stmt->bindValue(':id', $idWac);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->bindParam(':id_usuario', $userData->id);
             $stmt->bindParam(':credential_id', $credentialId);
             $stmt->bindParam(':public_key', $publicKey);
@@ -304,9 +309,10 @@ class WebAuthn
                 SELECT wc.credential_id 
                 FROM webauthn_credentials wc
                 INNER JOIN usuarios u ON wc.id_usuario = u.id
-                WHERE u.usuario = :usuario AND wc.activo = 1 AND u.activo = 1
+                WHERE u.usuario = :usuario AND wc.activo = 1 AND u.activo = 1 AND wc.id_tenant = :id_tenant
             ");
             $stmt->bindParam(':usuario', $usuario);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $credenciales = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -439,7 +445,7 @@ class WebAuthn
             $stmtUpdate->bindParam(':id', $credencial['cred_id']);
             $stmtUpdate->execute();
 
-            $response = self::obtenerDatosCompletoUsuario($db, $credencial['id_usuario']);
+            $response = self::obtenerDatosCompletoUsuario($db, $credencial['id_usuario'], TenantContext::codigo(), true);
             Flight::json($response);
 
         } catch (Exception $e) {
@@ -583,7 +589,7 @@ class WebAuthn
             $stmtUpdate->execute();
 
             // Obtener datos completos y JWT
-            $response = self::obtenerDatosCompletoUsuario($dbTenant, $credencial['id_usuario']);
+            $response = self::obtenerDatosCompletoUsuario($dbTenant, $credencial['id_usuario'], $indexData['tenant_codigo']);
 
             if (empty($response)) {
                 Flight::json(['error' => true, 'message' => 'Usuario no encontrado o inactivo'], 401);
@@ -611,7 +617,14 @@ class WebAuthn
     // ================================================================
     // Utilidad: Obtener datos completos + JWT de un usuario
     // ================================================================
-    private static function obtenerDatosCompletoUsuario($db, $idUsuario)
+    /**
+     * @param string|null $portal Portal desde el que se autentica. Si es null se
+     *                            lee del body; un valor desconocido cae a
+     *                            'institucional' (no bloqueado) via normalizarPortal.
+     * @param bool $conContextoTenant true cuando TenantContext esta cargado y por
+     *                            tanto se puede consultar el estado de habeas data.
+     */
+    private static function obtenerDatosCompletoUsuario($db, $idUsuario, $tenantCodigo = null, $conContextoTenant = false)
     {
         $stmtUser = $db->prepare("
             SELECT 
@@ -620,15 +633,12 @@ class WebAuthn
                 p.id_tipo_identificacion, ti.nombre tipo_identificacion,
                 p.numero_identificacion, p.fecha_nacimiento, p.id_genero, 
                 g.nombre nombre_genero, p.direccion, u.activo, 
-                d.id id_docente, cd.id id_casa_docente, cd.nombre nombre_casa_docente,
                 u.acceso_institucional, u.acceso_chat_wa, u.acceso_portal_padres, u.super_admin,
                 c.sobrenombre, c.id id_colaborador, c.valida_ingreso_jornada, c.valida_ingreso_descanso
             FROM usuarios u 
             INNER JOIN personas p ON u.id_persona = p.id
             LEFT JOIN tipos_identificacion ti ON p.id_tipo_identificacion = ti.id
             LEFT JOIN generos g ON p.id_genero = g.id
-            LEFT JOIN docentes d ON p.id = d.id_persona
-            LEFT JOIN casas_docentes cd ON d.id_casa_docente = cd.id
             LEFT JOIN colaboradores c ON p.id = c.id_persona
             WHERE u.id = :id AND u.activo = 1
         ");
@@ -642,7 +652,19 @@ class WebAuthn
             } else {
                 $permisos = self::obtenerPermisosUsuarioFromDb($db, $response[0]['id']);
             }
-            $token = JWTService::generarToken($response[0], $permisos);
+            $portal = JWTService::normalizarPortal(Flight::request()->data['portal'] ?? null);
+
+            // hd_ok solo se puede calcular con TenantContext cargado (la ruta
+            // /auth/webauthn corre sin tenant, ver index.php). Sin contexto no
+            // se emite el claim y el backend no bloquea: ese camino queda
+            // cubierto por la verificacion que el front hace al entrar.
+            $extra = ['portal' => $portal];
+            if ($conContextoTenant) {
+                $extra['hd_ok'] = AutorizacionesHabeasData::estaAutorizado($response[0]['id'], $portal);
+                $extra['hd_v'] = AutorizacionesHabeasData::versionAceptada($response[0]['id'], $portal);
+            }
+
+            $token = JWTService::generarToken($response[0], $permisos, $tenantCodigo, $extra);
             $response[0]['token'] = $token;
             $response[0]['permisos'] = $permisos;
         }
@@ -687,9 +709,10 @@ class WebAuthn
                 SELECT COUNT(*) as total
                 FROM webauthn_credentials wc
                 INNER JOIN usuarios u ON wc.id_usuario = u.id
-                WHERE u.usuario = :usuario AND wc.activo = 1 AND u.activo = 1
+                WHERE u.usuario = :usuario AND wc.activo = 1 AND u.activo = 1 AND wc.id_tenant = :id_tenant
             ");
             $stmt->bindParam(':usuario', $usuario);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $resultado = $stmt->fetch();
 
@@ -716,10 +739,11 @@ class WebAuthn
             $stmt = $db->prepare("
                 SELECT id, dispositivo, fecha_registro, ultimo_uso, activo
                 FROM webauthn_credentials
-                WHERE id_usuario = :id_usuario
+                WHERE id_usuario = :id_usuario AND id_tenant = :id_tenant
                 ORDER BY fecha_registro DESC
             ");
             $stmt->bindParam(':id_usuario', $userData->id);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $credenciales = $stmt->fetchAll();
 
@@ -748,9 +772,10 @@ class WebAuthn
             $db = Flight::db();
 
             // Obtener credential_id antes de eliminar para limpiar master
-            $stmtGet = $db->prepare("SELECT credential_id FROM webauthn_credentials WHERE id = :id AND id_usuario = :id_usuario");
+            $stmtGet = $db->prepare("SELECT credential_id FROM webauthn_credentials WHERE id = :id AND id_usuario = :id_usuario AND id_tenant = :id_tenant");
             $stmtGet->bindParam(':id', $id);
             $stmtGet->bindParam(':id_usuario', $userData->id);
+            $stmtGet->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtGet->execute();
             $cred = $stmtGet->fetch();
 
@@ -760,9 +785,10 @@ class WebAuthn
             }
 
             // Eliminar del tenant
-            $stmt = $db->prepare("DELETE FROM webauthn_credentials WHERE id = :id AND id_usuario = :id_usuario");
+            $stmt = $db->prepare("DELETE FROM webauthn_credentials WHERE id = :id AND id_usuario = :id_usuario AND id_tenant = :id_tenant");
             $stmt->bindParam(':id', $id);
             $stmt->bindParam(':id_usuario', $userData->id);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
 
             // Eliminar del master

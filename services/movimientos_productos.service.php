@@ -52,9 +52,11 @@ class MovimientosProductos
         LEFT JOIN personas per_apr ON u_apr.id_persona = per_apr.id
         LEFT JOIN usuarios u_anu ON mp.id_usuario_anulado = u_anu.id
         LEFT JOIN personas per_anu ON u_anu.id_persona = per_anu.id
+        WHERE mp.id_tenant = :id_tenant
         GROUP BY mp.id
         ORDER BY mp.fecha_movimiento DESC, mp.id DESC
     ");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -97,9 +99,10 @@ class MovimientosProductos
                                 LEFT JOIN usuarios u_anu ON mp.id_usuario_anulado = u_anu.id
                                 LEFT JOIN personas per_anu ON u_anu.id_persona = per_anu.id
                                 
-                                WHERE mp.id = :id
+                                WHERE mp.id = :id AND mp.id_tenant = :id_tenant
                             ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $movimiento = $sentence->fetch();
 
@@ -113,9 +116,10 @@ class MovimientosProductos
                                 FROM movimientos_productos_detalle mpd
                                 INNER JOIN productos p ON mpd.id_producto = p.id
                                 LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
-                                WHERE mpd.id_movimiento = :id
+                                WHERE mpd.id_movimiento = :id AND mpd.id_tenant = :id_tenant
                             ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $detalle = $sentence->fetchAll();
 
@@ -150,6 +154,8 @@ class MovimientosProductos
             // Insertar movimiento principal
             $stmt = $db->prepare("
                 INSERT INTO movimientos_productos (
+                    id,
+                    id_tenant,
                     fecha_movimiento,
                     id_concepto_movimiento,
                     id_proveedor,
@@ -158,6 +164,8 @@ class MovimientosProductos
                     fecha_registro,
                     id_estado
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :fecha_movimiento,
                     :id_concepto_movimiento,
                     :id_proveedor,
@@ -168,6 +176,9 @@ class MovimientosProductos
                 )
             ");
 
+            $idMov = Uuid::generar();
+            $stmt->bindValue(':id', $idMov);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->bindParam(':fecha_movimiento', $fechaMovimiento);
             $stmt->bindParam(':id_concepto_movimiento', $idConceptoMovimiento);
             $stmt->bindParam(':id_proveedor', $idProveedor);
@@ -175,14 +186,15 @@ class MovimientosProductos
             $stmt->bindParam(':id_usuario_registro', $idUsuarioRegistro);
             $stmt->execute();
 
-            $idMovimiento = $db->lastInsertId();
+            $idMovimiento = $idMov;
 
             // Obtener tipo de movimiento
             $stmtTipo = $db->prepare("
                 SELECT tipo FROM conceptos_movimiento 
-                WHERE id = :id_concepto
+                WHERE id = :id_concepto AND id_tenant = :id_tenant
             ");
             $stmtTipo->bindParam(':id_concepto', $idConceptoMovimiento);
+            $stmtTipo->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtTipo->execute();
             $concepto = $stmtTipo->fetch(PDO::FETCH_ASSOC);
 
@@ -196,12 +208,16 @@ class MovimientosProductos
             if (!empty($detalle) && is_array($detalle)) {
                 $stmtDetalle = $db->prepare("
                     INSERT INTO movimientos_productos_detalle (
+                        id,
+                        id_tenant,
                         id_movimiento,
                         id_producto,
                         cantidad,
                         precio_unitario,
                         fecha_vencimiento
                     ) VALUES (
+                        :id,
+                        :id_tenant,
                         :id_movimiento,
                         :id_producto,
                         :cantidad,
@@ -225,6 +241,9 @@ class MovimientosProductos
                     $fechaVencimiento = !empty($item['fecha_vencimiento']) ? $item['fecha_vencimiento'] : null;
 
                     // Insertar detalle SIN actualizar el stock del producto
+                    $idMovDet = Uuid::generar();
+                    $stmtDetalle->bindValue(':id', $idMovDet);
+                    $stmtDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtDetalle->bindParam(':id_movimiento', $idMovimiento);
                     $stmtDetalle->bindParam(':id_producto', $idProducto);
                     $stmtDetalle->bindParam(':cantidad', $cantidad);
@@ -272,9 +291,10 @@ class MovimientosProductos
             SELECT mp.id_estado, mp.id_concepto_movimiento, cm.tipo
             FROM movimientos_productos mp
             INNER JOIN conceptos_movimiento cm ON cm.id = mp.id_concepto_movimiento
-            WHERE mp.id = :id
+            WHERE mp.id = :id AND mp.id_tenant = :id_tenant
         ");
             $stmtVerificar->bindParam(':id', $idMovimiento);
+            $stmtVerificar->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtVerificar->execute();
             $movimiento = $stmtVerificar->fetch(PDO::FETCH_ASSOC);
 
@@ -292,9 +312,10 @@ class MovimientosProductos
             $stmtDetalle = $db->prepare("
             SELECT id_producto, cantidad, precio_unitario
             FROM movimientos_productos_detalle
-            WHERE id_movimiento = :id_movimiento
+            WHERE id_movimiento = :id_movimiento AND id_tenant = :id_tenant
         ");
             $stmtDetalle->bindParam(':id_movimiento', $idMovimiento);
+            $stmtDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtDetalle->execute();
             $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
@@ -317,7 +338,7 @@ class MovimientosProductos
                         precio_unitario = :precio,
                         fecha_ultimo_movimiento = NOW(),
                         id_ultimo_movimiento = :id_movimiento
-                    WHERE id = :id_producto
+                    WHERE id = :id_producto AND id_tenant = :id_tenant
                 ");
                     $stmtUpdateStock->bindParam(':cantidad', $cantidad);
                     $stmtUpdateStock->bindParam(':precio', $precioUnitario);
@@ -330,7 +351,7 @@ class MovimientosProductos
                     SET stock_actual = stock_actual - :cantidad,
                         fecha_ultimo_movimiento = NOW(),
                         id_ultimo_movimiento = :id_movimiento
-                    WHERE id = :id_producto
+                    WHERE id = :id_producto AND id_tenant = :id_tenant
                 ");
                     $stmtUpdateStock->bindParam(':cantidad', $cantidad);
                     $stmtUpdateStock->bindParam(':id_movimiento', $idMovimiento);
@@ -343,7 +364,7 @@ class MovimientosProductos
                         precio_unitario = :precio,
                         fecha_ultimo_movimiento = NOW(),
                         id_ultimo_movimiento = :id_movimiento
-                    WHERE id = :id_producto
+                    WHERE id = :id_producto AND id_tenant = :id_tenant
                 ");
                     $stmtUpdateStock->bindParam(':cantidad', $cantidad);
                     $stmtUpdateStock->bindParam(':precio', $precioUnitario);
@@ -353,14 +374,16 @@ class MovimientosProductos
                     throw new Exception("Tipo de movimiento no válido: " . $tipoMovimiento);
                 }
 
+                $stmtUpdateStock->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmtUpdateStock->execute();
 
                 // Validar stock negativo en salidas
                 if ($tipoMovimiento == 'S') {
                     $stmtCheckStock = $db->prepare("
-                    SELECT stock_actual, nombre FROM productos WHERE id = :id
+                    SELECT stock_actual, nombre FROM productos WHERE id = :id AND id_tenant = :id_tenant
                 ");
                     $stmtCheckStock->bindParam(':id', $idProducto);
+                    $stmtCheckStock->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtCheckStock->execute();
                     $producto = $stmtCheckStock->fetch(PDO::FETCH_ASSOC);
 
@@ -375,9 +398,10 @@ class MovimientosProductos
             UPDATE movimientos_productos 
             SET id_estado = 2,
                 fecha_registro = NOW()
-            WHERE id = :id
+            WHERE id = :id AND id_tenant = :id_tenant
         ");
             $stmtUpdate->bindParam(':id', $idMovimiento);
+            $stmtUpdate->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtUpdate->execute();
 
             $db->commit();
@@ -409,9 +433,10 @@ class MovimientosProductos
             SELECT mp.id_estado, mp.id_concepto_movimiento, cm.tipo
             FROM movimientos_productos mp
             INNER JOIN conceptos_movimiento cm ON cm.id = mp.id_concepto_movimiento
-            WHERE mp.id = :id
+            WHERE mp.id = :id AND mp.id_tenant = :id_tenant
         ");
             $stmtVerificar->bindParam(':id', $idMovimiento);
+            $stmtVerificar->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtVerificar->execute();
             $movimiento = $stmtVerificar->fetch(PDO::FETCH_ASSOC);
 
@@ -426,10 +451,11 @@ class MovimientosProductos
                 SET id_estado = 4,
                     id_usuario_anulado = :usuario,
                     fecha_anulado = NOW()
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
                 $stmt->bindParam(':id', $idMovimiento);
-                $stmt->bindParam(':usuario', $usuarioAnulado, PDO::PARAM_INT); // Especificar que es INT
+                $stmt->bindParam(':usuario', $usuarioAnulado); // usuarios.id es UUID (CHAR(36)): se envia como string
+                $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmt->execute();
 
                 $db->commit();
@@ -449,9 +475,10 @@ class MovimientosProductos
                 $stmtDetalle = $db->prepare("
                 SELECT id_producto, cantidad, precio_unitario
                 FROM movimientos_productos_detalle
-                WHERE id_movimiento = :id_movimiento
+                WHERE id_movimiento = :id_movimiento AND id_tenant = :id_tenant
             ");
                 $stmtDetalle->bindParam(':id_movimiento', $idMovimiento);
+                $stmtDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmtDetalle->execute();
                 $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
@@ -462,9 +489,10 @@ class MovimientosProductos
 
                     // Verificar que sea el último movimiento del producto
                     $stmtCheckUltimo = $db->prepare("
-                    SELECT id_ultimo_movimiento FROM productos WHERE id = :id
+                    SELECT id_ultimo_movimiento FROM productos WHERE id = :id AND id_tenant = :id_tenant
                 ");
                     $stmtCheckUltimo->bindParam(':id', $idProducto);
+                    $stmtCheckUltimo->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtCheckUltimo->execute();
                     $producto = $stmtCheckUltimo->fetch(PDO::FETCH_ASSOC);
 
@@ -494,7 +522,7 @@ class MovimientosProductos
                                 AND mp.id < :id_movimiento2
                                 AND mp.id_estado IN (2,3)
                             )
-                        WHERE id = :id_producto3
+                        WHERE id = :id_producto3 AND id_tenant = :id_tenant
                     ");
                     } elseif ($tipoMovimiento == 'S') {
                         // Si fue salida, sumar la cantidad
@@ -517,7 +545,7 @@ class MovimientosProductos
                                 AND mp.id < :id_movimiento2
                                 AND mp.id_estado IN (2,3)
                             )
-                        WHERE id = :id_producto3
+                        WHERE id = :id_producto3 AND id_tenant = :id_tenant
                     ");
                     } elseif ($tipoMovimiento == 'I') {
                         // Si fue inventario inicial, restaurar stock anterior
@@ -526,7 +554,7 @@ class MovimientosProductos
                         SET stock_actual = stock_anterior,
                             fecha_ultimo_movimiento = NULL,
                             id_ultimo_movimiento = NULL
-                        WHERE id = :id_producto3
+                        WHERE id = :id_producto3 AND id_tenant = :id_tenant
                     ");
                     }
 
@@ -539,6 +567,7 @@ class MovimientosProductos
                         $stmtRevertir->bindParam(':id_movimiento2', $idMovimiento);
                     }
                     $stmtRevertir->bindParam(':id_producto3', $idProducto);
+                    $stmtRevertir->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtRevertir->execute();
                 }
 
@@ -548,10 +577,11 @@ class MovimientosProductos
                 SET id_estado = 4,
                     id_usuario_anulado = :usuario,
                     fecha_anulado = NOW()
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
                 $stmtUpdate->bindParam(':id', $idMovimiento);
-                $stmtUpdate->bindParam(':usuario', $usuarioAnulado, PDO::PARAM_INT);
+                $stmtUpdate->bindParam(':usuario', $usuarioAnulado);
+                $stmtUpdate->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmtUpdate->execute();
 
                 $db->commit();
@@ -581,9 +611,10 @@ class MovimientosProductos
 
             // Verificar estado actual
             $stmtVerificar = $db->prepare("
-            SELECT id_estado FROM movimientos_productos WHERE id = :id
+            SELECT id_estado FROM movimientos_productos WHERE id = :id AND id_tenant = :id_tenant
         ");
             $stmtVerificar->bindParam(':id', $idMovimiento);
+            $stmtVerificar->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtVerificar->execute();
             $movimiento = $stmtVerificar->fetch(PDO::FETCH_ASSOC);
 
@@ -602,10 +633,11 @@ class MovimientosProductos
             SET id_estado = 3,
                 id_usuario_aprobado = :usuario,
                 fecha_aprobado = NOW()
-            WHERE id = :id
+            WHERE id = :id AND id_tenant = :id_tenant
         ");
             $stmt->bindParam(':id', $idMovimiento);
-            $stmt->bindParam(':usuario', $usuarioAprobado, PDO::PARAM_INT); // Especificar que es INT
+            $stmt->bindParam(':usuario', $usuarioAprobado); // usuarios.id es UUID (CHAR(36)): se envia como string
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
 
             Flight::json([
@@ -639,10 +671,11 @@ class MovimientosProductos
             INNER JOIN movimientos_productos_detalle mpd ON mp.id = mpd.id_movimiento
             INNER JOIN conceptos_movimiento cm ON mp.id_concepto_movimiento = cm.id
             INNER JOIN estados_movimientos_productos emp ON mp.id_estado = emp.id
-            WHERE mpd.id_producto = :id_producto
+            WHERE mpd.id_producto = :id_producto AND mp.id_tenant = :id_tenant
             ORDER BY mp.fecha_movimiento DESC, mp.id DESC
         ");
         $sentence->bindParam(':id_producto', $id_producto);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -658,8 +691,9 @@ class MovimientosProductos
             $id_proveedor = Flight::request()->data['id_proveedor'] ?? null;
 
             // Verificar que el movimiento existe y está en estado 1
-            $sentence = $db->prepare("SELECT id_estado FROM movimientos_productos WHERE id = :id");
+            $sentence = $db->prepare("SELECT id_estado FROM movimientos_productos WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $movimiento = $sentence->fetch();
 
@@ -676,12 +710,13 @@ class MovimientosProductos
                 UPDATE movimientos_productos SET 
                     observaciones = :observaciones,
                     id_proveedor = :id_proveedor
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':observaciones', $observaciones);
             $sentence->bindParam(':id_proveedor', $id_proveedor);
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('success' => true, 'message' => 'Movimiento actualizado correctamente'));
@@ -715,9 +750,10 @@ class MovimientosProductos
             SELECT mp.id_estado, mp.id_concepto_movimiento, cm.tipo 
             FROM movimientos_productos mp
             INNER JOIN conceptos_movimiento cm ON mp.id_concepto_movimiento = cm.id
-            WHERE mp.id = :id
+            WHERE mp.id = :id AND mp.id_tenant = :id_tenant
         ");
             $sentence->bindParam(':id', $id_movimiento);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $movimiento = $sentence->fetch();
 
@@ -736,9 +772,10 @@ class MovimientosProductos
             // para reemplazarlos con la nueva lista completa
             $deleteStmt = $db->prepare("
             DELETE FROM movimientos_productos_detalle 
-            WHERE id_movimiento = :id_movimiento
+            WHERE id_movimiento = :id_movimiento AND id_tenant = :id_tenant
         ");
             $deleteStmt->bindParam(':id_movimiento', $id_movimiento);
+            $deleteStmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $deleteStmt->execute();
 
             error_log("Productos eliminados del movimiento $id_movimiento");
@@ -746,6 +783,8 @@ class MovimientosProductos
             // Insertar todos los productos (la lista completa viene del frontend)
             $sentenceDetalle = $db->prepare("
             INSERT INTO movimientos_productos_detalle(
+                id,
+                id_tenant,
                 id_movimiento,
                 id_producto,
                 cantidad,
@@ -753,6 +792,8 @@ class MovimientosProductos
                 precio_unitario,
                 fecha_vencimiento
             ) VALUES (
+                :id,
+                :id_tenant,
                 :id_movimiento,
                 :id_producto,
                 :cantidad,
@@ -783,8 +824,9 @@ class MovimientosProductos
                 }
 
                 // Obtener stock actual del producto (será el stock_anterior)
-                $sentenceStock = $db->prepare("SELECT stock_actual FROM productos WHERE id = :id");
+                $sentenceStock = $db->prepare("SELECT stock_actual FROM productos WHERE id = :id AND id_tenant = :id_tenant");
                 $sentenceStock->bindParam(':id', $id_producto);
+                $sentenceStock->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentenceStock->execute();
                 $producto = $sentenceStock->fetch();
 
@@ -801,6 +843,9 @@ class MovimientosProductos
                 }
 
                 // Insertar detalle (sin actualizar stock del producto porque es borrador)
+                $idMovDet2 = Uuid::generar();
+                $sentenceDetalle->bindValue(':id', $idMovDet2);
+                $sentenceDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentenceDetalle->bindParam(':id_movimiento', $id_movimiento);
                 $sentenceDetalle->bindParam(':id_producto', $id_producto);
                 $sentenceDetalle->bindParam(':cantidad', $cantidad);
@@ -869,9 +914,10 @@ class MovimientosProductos
             LEFT JOIN proveedores pr ON mp.id_proveedor = pr.id
             LEFT JOIN personas per ON pr.id_persona = per.id
             INNER JOIN estados_movimientos_productos emp ON mp.id_estado = emp.id
-            WHERE mp.id = :id
+            WHERE mp.id = :id AND mp.id_tenant = :id_tenant
         ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $movimiento = $sentence->fetch();
 
@@ -903,11 +949,12 @@ class MovimientosProductos
             INNER JOIN productos p ON mpd.id_producto = p.id
             LEFT JOIN unidades_medida um ON p.id_unidad_medida = um.id
             LEFT JOIN tipos_producto tp ON p.id_tipo_producto = tp.id
-            WHERE mpd.id_movimiento = :id
+            WHERE mpd.id_movimiento = :id AND mpd.id_tenant = :id_tenant
             ORDER BY p.nombre
         ");
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':tipo', $movimiento['tipo']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $detalle = $sentence->fetchAll();
 
@@ -922,9 +969,10 @@ class MovimientosProductos
                     SELECT CONCAT(IFNULL(primer_nombre, ''), ' ', IFNULL(primer_apellido, '')) AS nombre_completo
                     FROM usuarios u
                     LEFT JOIN personas p ON u.id_persona = p.id
-                    WHERE u.usuario = :username 
+                    WHERE u.usuario = :username AND u.id_tenant = :id_tenant
                 ");
                 $sentenceUsuario->bindParam(':username', $movimiento['id_usuario_registro']);
+                $sentenceUsuario->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentenceUsuario->execute();
                 $usuario = $sentenceUsuario->fetch();
                 if ($usuario) {
@@ -938,9 +986,10 @@ class MovimientosProductos
                     SELECT CONCAT(IFNULL(primer_nombre, ''), ' ', IFNULL(primer_apellido, '')) AS nombre_completo
                     FROM usuarios u
                     LEFT JOIN personas p ON u.id_persona = p.id
-                    WHERE u.usuario = :username 
+                    WHERE u.usuario = :username AND u.id_tenant = :id_tenant
                 ");
                 $sentenceUsuario->bindParam(':username', $movimiento['id_usuario_aprobado']);
+                $sentenceUsuario->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentenceUsuario->execute();
                 $usuario = $sentenceUsuario->fetch();
                 if ($usuario) {

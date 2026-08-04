@@ -1,6 +1,23 @@
 <?php
 class Personas
 {
+    /**
+     * Normaliza un campo de texto antes de guardarlo:
+     * quita espacios sobrantes y convierte la cadena vacia en NULL.
+     * Se usa en los nombres y apellidos para que la concatenacion del nombre
+     * completo no produzca espacios dobles ni valores basura.
+     */
+    private static function normalizarTexto($valor)
+    {
+        if ($valor === null) {
+            return null;
+        }
+
+        $valor = trim((string) $valor);
+
+        return $valor === '' ? null : $valor;
+    }
+
     public static function getAll()
     {
         try {
@@ -14,7 +31,9 @@ class Personas
         INNER JOIN tipos_identificacion ti ON p.id_tipo_identificacion = ti.id
         LEFT JOIN generos g ON p.id_genero = g.id
         LEFT JOIN ciudades c ON p.id_ciudad = c.id
+        WHERE p.id_tenant = :id_tenant
         ORDER BY p.id DESC");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
 
@@ -42,8 +61,9 @@ class Personas
         INNER JOIN tipos_identificacion ti ON p.id_tipo_identificacion = ti.id
         LEFT JOIN generos g ON p.id_genero = g.id
         LEFT JOIN ciudades c ON p.id_ciudad = c.id
-        WHERE p.id = :id");
+        WHERE p.id = :id AND p.id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
 
@@ -77,10 +97,12 @@ class Personas
         LEFT JOIN generos g ON p.id_genero = g.id
         LEFT JOIN ciudades c ON p.id_ciudad = c.id
         WHERE p.id_tipo_identificacion = :id_tipo_identificacion 
-        AND p.numero_identificacion = :numero_identificacion");
+        AND p.numero_identificacion = :numero_identificacion
+        AND p.id_tenant = :id_tenant");
 
             $sentence->bindParam(':id_tipo_identificacion', $id_tipo_identificacion);
             $sentence->bindParam(':numero_identificacion', $numero_identificacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
 
@@ -104,10 +126,10 @@ class Personas
             $db = Flight::db();
 
             // Obtener datos de la solicitud
-            $primer_nombre = isset(Flight::request()->data['primer_nombre']) ? Flight::request()->data['primer_nombre'] : null;
-            $segundo_nombre = isset(Flight::request()->data['segundo_nombre']) ? Flight::request()->data['segundo_nombre'] : null;
-            $primer_apellido = isset(Flight::request()->data['primer_apellido']) ? Flight::request()->data['primer_apellido'] : null;
-            $segundo_apellido = isset(Flight::request()->data['segundo_apellido']) ? Flight::request()->data['segundo_apellido'] : null;
+            $primer_nombre = self::normalizarTexto(isset(Flight::request()->data['primer_nombre']) ? Flight::request()->data['primer_nombre'] : null);
+            $segundo_nombre = self::normalizarTexto(isset(Flight::request()->data['segundo_nombre']) ? Flight::request()->data['segundo_nombre'] : null);
+            $primer_apellido = self::normalizarTexto(isset(Flight::request()->data['primer_apellido']) ? Flight::request()->data['primer_apellido'] : null);
+            $segundo_apellido = self::normalizarTexto(isset(Flight::request()->data['segundo_apellido']) ? Flight::request()->data['segundo_apellido'] : null);
             $id_tipo_identificacion = Flight::request()->data['id_tipo_identificacion'];
             $numero_identificacion = Flight::request()->data['numero_identificacion'];
             $nacionalidad = isset(Flight::request()->data['nacionalidad']) ? Flight::request()->data['nacionalidad'] : null;
@@ -123,8 +145,13 @@ class Personas
 
             error_log("Datos recibidos para crear: razon_social=$razon_social, primer_nombre=$primer_nombre, primer_apellido=$primer_apellido, numero_identificacion=$numero_identificacion");
 
+            $idTenant = TenantContext::id();
+            $id = Uuid::generar();
+
             // Preparar la sentencia SQL
             $sentence = $db->prepare("INSERT INTO personas (
+                id,
+                id_tenant,
                 primer_nombre, 
                 segundo_nombre, 
                 primer_apellido, 
@@ -142,6 +169,8 @@ class Personas
                 rh,
                 razon_social
             ) VALUES (
+                :id,
+                :id_tenant,
                 :primer_nombre, 
                 :segundo_nombre, 
                 :primer_apellido, 
@@ -161,6 +190,8 @@ class Personas
             )");
 
             // Vincular los parámetros
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', $idTenant, PDO::PARAM_INT);
             $sentence->bindParam(':primer_nombre', $primer_nombre);
             $sentence->bindParam(':segundo_nombre', $segundo_nombre);
             $sentence->bindParam(':primer_apellido', $primer_apellido);
@@ -179,13 +210,10 @@ class Personas
             $sentence->bindParam(':razon_social', $razon_social);
 
             // Ejecutar la sentencia
-            $sentence->execute();
+            $ok = $sentence->execute();
 
-            // Obtener el ID del último registro insertado
-            $id = $db->lastInsertId();
-
-            if ($id == 0) {
-                error_log("Error: El ID insertado es 0. Verifica la ejecución del INSERT.");
+            if (!$ok) {
+                error_log("Error: el INSERT de persona no se ejecutó correctamente.");
                 Flight::json(array('error' => 'No se pudo crear la persona. Intente de nuevo.'), 500);
                 return;
             }
@@ -205,10 +233,10 @@ class Personas
             $db = Flight::db();
 
             $id = Flight::request()->data['id'];
-            $primer_nombre = isset(Flight::request()->data['primer_nombre']) ? Flight::request()->data['primer_nombre'] : null;
-            $segundo_nombre = isset(Flight::request()->data['segundo_nombre']) ? Flight::request()->data['segundo_nombre'] : null;
-            $primer_apellido = isset(Flight::request()->data['primer_apellido']) ? Flight::request()->data['primer_apellido'] : null;
-            $segundo_apellido = isset(Flight::request()->data['segundo_apellido']) ? Flight::request()->data['segundo_apellido'] : null;
+            $primer_nombre = self::normalizarTexto(isset(Flight::request()->data['primer_nombre']) ? Flight::request()->data['primer_nombre'] : null);
+            $segundo_nombre = self::normalizarTexto(isset(Flight::request()->data['segundo_nombre']) ? Flight::request()->data['segundo_nombre'] : null);
+            $primer_apellido = self::normalizarTexto(isset(Flight::request()->data['primer_apellido']) ? Flight::request()->data['primer_apellido'] : null);
+            $segundo_apellido = self::normalizarTexto(isset(Flight::request()->data['segundo_apellido']) ? Flight::request()->data['segundo_apellido'] : null);
             $id_tipo_identificacion = Flight::request()->data['id_tipo_identificacion'];
             $numero_identificacion = Flight::request()->data['numero_identificacion'];
             $nacionalidad = isset(Flight::request()->data['nacionalidad']) ? Flight::request()->data['nacionalidad'] : null;
@@ -248,9 +276,10 @@ class Personas
                 ocupacion = :ocupacion,
                 rh = :rh,
                 razon_social = :razon_social
-            WHERE id = :id");
+            WHERE id = :id AND id_tenant = :id_tenant");
 
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':primer_nombre', $primer_nombre);
             $sentence->bindParam(':segundo_nombre', $segundo_nombre);
             $sentence->bindParam(':primer_apellido', $primer_apellido);
@@ -294,8 +323,9 @@ class Personas
                 return;
             }
 
-            $sentence = $db->prepare("DELETE FROM personas WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM personas WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             if ($sentence->rowCount() == 0) {
@@ -336,8 +366,9 @@ class Personas
                 return;
             }
 
-            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id");
+            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $persona = $sentence->fetch();
 
@@ -373,9 +404,10 @@ class Personas
                 return;
             }
 
-            $sentence = $db->prepare("UPDATE personas SET foto = :foto WHERE id = :id");
+            $sentence = $db->prepare("UPDATE personas SET foto = :foto WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':foto', $ruta_relativa);
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array(
@@ -395,8 +427,9 @@ class Personas
         try {
             $db = Flight::db();
 
-            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id");
+            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $persona = $sentence->fetch();
 
@@ -409,8 +442,9 @@ class Personas
                 UploadHelper::deleteFile($persona['foto']);
             }
 
-            $sentence = $db->prepare("UPDATE personas SET foto = NULL WHERE id = :id");
+            $sentence = $db->prepare("UPDATE personas SET foto = NULL WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array(
@@ -429,8 +463,9 @@ class Personas
         try {
             $db = Flight::db();
             
-            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id");
+            $sentence = $db->prepare("SELECT foto FROM personas WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $persona = $sentence->fetch();
 
@@ -487,8 +522,10 @@ class Personas
                 LEFT JOIN cargos ca ON col.id_cargo = ca.id
                 WHERE DAY(p.fecha_nacimiento) = DAY(CURDATE())
                 AND MONTH(p.fecha_nacimiento) = MONTH(CURDATE())
+                AND p.id_tenant = :id_tenant
                 ORDER BY p.primer_nombre ASC
             ");
+            $stmtColaboradores->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtColaboradores->execute();
             $cumpleaneros = $stmtColaboradores->fetchAll();
 

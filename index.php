@@ -14,6 +14,9 @@ date_default_timezone_set('America/Bogota');
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: X-Tenant, x-tenant, X-API-KEY, X-Silent, X-Skip-Tenant, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Request-Method, Authorization");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE, PATCH");
+// Sin esto el navegador oculta Content-Disposition al JS y las descargas blob
+// pierden el nombre real del archivo (bajan con el nombre por defecto, sin extension).
+header("Access-Control-Expose-Headers: Content-Disposition");
 header("Allow: GET, POST, OPTIONS, PUT, DELETE, PATCH");
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -43,15 +46,11 @@ if (strpos($requestUri, '/webhooks/firma') !== false) {
     Flight::start();
     exit(0);
 }
-// Webhook WhatsApp Business
-if (strpos($requestUri, '/webhooks/whatsapp') !== false) {
-    require __DIR__ . '/webhook/index.php';
-    exit(0);
-}
 // Login biométrico directo (sin tenant)
 if (strpos($requestUri, '/auth/webauthn') !== false) {
     require 'flight/Flight.php';
     require_once __DIR__ . '/config/master.env.php';
+    require_once __DIR__ . '/config/jwt.env.php';
     require_once __DIR__ . '/vendor/firebase/php-jwt/src/JWT.php';
     require_once __DIR__ . '/vendor/firebase/php-jwt/src/Key.php';
     require_once __DIR__ . '/services/jwt.service.php';
@@ -71,19 +70,14 @@ if (strpos($requestUri, '/auth/pre-login') !== false) {
     Flight::start();
     exit(0);
 }
-// Callback Google Calendar OAuth (sin tenant, viene en el state)
-if (strpos($requestUri, '/google-calendar/callback') !== false) {
-    require 'flight/Flight.php';
-    require_once __DIR__ . '/services/google-configuracion.service.php';
-    require_once __DIR__ . '/services/google-calendar.service.php';
-
-    Flight::route('GET /google-calendar/callback', [GoogleCalendarService::class, 'callback']);
-
-    Flight::start();
-    exit(0);
-}
 
 require 'flight/Flight.php';
+
+// ===================================================================
+// SEGURIDAD - clave JWT (no versionada) y contexto de tenant centralizado
+// ===================================================================
+require_once __DIR__ . '/config/jwt.env.php';
+require_once __DIR__ . '/services/tenant-context.service.php';
 
 
 // ===================================================================
@@ -154,6 +148,10 @@ if (!file_exists($configFile)) {
 
 // ✅ Si llegamos aquí, cargar la configuración
 require_once $configFile;
+
+// Fijar el contexto de tenant (codigo validado). El id numerico se obtiene
+// via TenantContext::id() desde la constante TENANT_ID del .env.php del tenant.
+TenantContext::setCodigo($tenant);
 // error_log("✅ Tenant cargado exitosamente: {$tenant} -> BD: " . DB_NAME);
 
 function convertirNumerosEnArray(&$array) {
@@ -163,7 +161,10 @@ function convertirNumerosEnArray(&$array) {
         if (is_array($value)) {
             convertirNumerosEnArray($value);
         } elseif (is_string($value) && is_numeric($value)) {
-            $camposString = ['telefono', 'celular', 'documento', 'ruc', 'codigo_postal', 'nit', 'clave', 'fecha'];
+            // Las versiones son strings ('1.0' != 1.0). Sin esto, json_encode
+            // devuelve 1 y cualquier comparacion de version se rompe.
+            $camposString = ['telefono', 'celular', 'documento', 'ruc', 'codigo_postal', 'nit', 'clave', 'fecha',
+                             'version', 'version_actual', 'version_politica', 'hd_v', 'referencia', 'referencia_bancaria'];
             
             if (!in_array($key, $camposString)) {
                 $value = strpos($value, '.') !== false ? (float)$value : (int)$value;
@@ -309,6 +310,118 @@ Flight::map('json', function($data, $code = 200, $encode = true) {
         ->header('Content-Type', 'application/json; charset=utf-8')
         ->write($json)
         ->send();
+});
+
+// ===================================================================
+// AUTENTICACION CENTRAL - exige token valido + tenant firmado en todas las
+// rutas que no sean publicas (login). Las rutas que hacen exit(0) mas arriba
+// (webhook de firma, /auth/pre-login, /auth/webauthn)
+// no llegan hasta este punto.
+// ===================================================================
+Flight::before('start', function (&$params, &$output) {
+    $metodo = Flight::request()->method;
+
+    if ($metodo === 'OPTIONS') {
+        return;
+    }
+
+    // Ruta sin query string ni slash final
+    $ruta = Flight::request()->url;
+    $posQuery = strpos($ruta, '?');
+    if ($posQuery !== false) {
+        $ruta = substr($ruta, 0, $posQuery);
+    }
+    $ruta = rtrim($ruta, '/');
+    if ($ruta === '') {
+        $ruta = '/';
+    }
+
+    // Rutas publicas: son el medio para OBTENER el token, no pueden exigirlo.
+    $rutasPublicas = [
+        '/',                        // healthcheck
+        '/usuarios-auth',           // login usuario + clave
+        '/webauthn/auth/opciones',  // login biometrico (con tenant) - paso 1
+        '/webauthn/auth/verificar', // login biometrico (con tenant) - paso 2
+        '/webauthn/disponible',     // verificacion previa al login
+    ];
+
+    if (in_array($ruta, $rutasPublicas, true)) {
+        return;
+    }
+
+    // La descarga de documentos NO usa el token de sesion: se autentica con un
+    // token efímero propio (?token=) que el handler valida contra el documento
+    // y el tenant. Por eso se salta aqui la autenticacion de sesion. El prefijo
+    // termina en '/download/', asi que NO afecta a '/download-token/', que si
+    // exige sesion para emitir el token.
+    if (strpos($ruta, '/documentos-personas/download/') === 0) {
+        return;
+    }
+
+    // Servir imagenes de galeria: igual que la descarga de documentos, el
+    // handler se autentica solo (token efímero por ?token= para <img src="">,
+    // o token de sesion por header para la descarga blob).
+    if (strpos($ruta, '/galeria-imagenes/servir/') === 0) {
+        return;
+    }
+
+    // Resto: token valido y que el tenant del token coincida con el del request.
+    $userData = JWTService::requerirTenant(TenantContext::codigo());
+
+    // -----------------------------------------------------------------
+    // HABEAS DATA - barrera real. El claim hd_ok viaja firmado dentro del
+    // token, asi que no se puede falsificar desde el cliente y no cuesta
+    // una consulta por request.
+    //
+    // Los tokens emitidos antes de este cambio no traen 'portal': se leen
+    // como 'institucional' y no se bloquean. Nadie pierde la sesion en el
+    // despliegue. Un usuario de padres con token viejo queda sin bloquear
+    // hasta que expire (24h); el guard del front cubre ese caso.
+    // -----------------------------------------------------------------
+    $rutasHabeasData = [
+        '/autorizaciones-habeas-data',
+        '/autorizaciones-habeas-data/verificar',
+        '/autorizaciones-habeas-data/plantilla',
+    ];
+
+    if (in_array($ruta, $rutasHabeasData, true)) {
+        return;
+    }
+
+    // Rutas de bootstrap: la app las necesita para arrancar (nombre, logo,
+    // NIT de la institucion). No son datos personales y corren antes del
+    // login, asi que no deben exigir habeas data. Sin esto, una sesion a
+    // medias o el atras/adelante del navegador rompen el arranque con un 403.
+    $rutasBootstrap = [
+        '/configuracion-global/multiples',
+    ];
+
+    if (in_array($ruta, $rutasBootstrap, true)) {
+        return;
+    }
+
+    $portalToken = isset($userData->portal) ? $userData->portal : JWTService::PORTAL_INSTITUCIONAL;
+
+    // Portales sujetos al bloqueo. Que un portal este aqui NO significa que
+    // se exija: el backend solo bloquea si ese tenant tiene la politica
+    // publicada y su flag habeas_data_activo_* encendido (ver seExige()).
+    // Un tenant sin plantilla de colaboradores no bloquea a nadie.
+    $portalesBloqueados = [
+        JWTService::PORTAL_PADRES,
+        JWTService::PORTAL_INSTITUCIONAL,
+    ];
+
+    if (in_array($portalToken, $portalesBloqueados, true)) {
+        $hdOk = isset($userData->hd_ok) ? $userData->hd_ok : false;
+
+        if ($hdOk !== true) {
+            Flight::halt(403, json_encode([
+                'error' => 'Debe aceptar la política de tratamiento de datos',
+                'code'  => 'HABEAS_DATA_REQUIRED'
+            ]));
+            exit;
+        }
+    }
 });
 
 Flight::start();

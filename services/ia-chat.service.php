@@ -2,6 +2,9 @@
 
 class IaChat
 {
+    const URL_OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
+    const URL_GROQ       = 'https://api.groq.com/openai/v1/chat/completions';
+
     // =====================================================
     // ENDPOINTS PRINCIPALES
     // =====================================================
@@ -9,22 +12,25 @@ class IaChat
     public static function enviarMensaje()
     {
         try {
+            // El usuario sale del token, nunca del body (evita suplantar id_persona).
+            $userData = JWTService::requerirAutenticacion();
+            PermisosService::validar($userData, 'chat.ia.usar');
+            $id_persona = $userData->id_persona;
+
             $db = Flight::db();
 
-            $id_persona = Flight::request()->data['id_persona'];
-            $mensaje = Flight::request()->data['mensaje'];
+            $mensaje = trim(Flight::request()->data['mensaje'] ?? '');
             $id_conversacion = Flight::request()->data['id_conversacion'] ?? null;
 
-            if (!$id_persona || empty(trim($mensaje))) {
-                Flight::json(["error" => "id_persona y mensaje son requeridos"], 400);
+            if ($mensaje === '') {
+                Flight::json(["error" => "El mensaje es requerido"], 400);
                 return;
             }
 
-            $mensaje = trim($mensaje);
-
             // 1. Verificar que el usuario esté activo
-            $sentence = $db->prepare("SELECT activo FROM usuarios WHERE id_persona = :id_persona LIMIT 1");
-            $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+            $sentence = $db->prepare("SELECT activo FROM usuarios WHERE id_persona = :id_persona AND id_tenant = :id_tenant LIMIT 1");
+            $sentence->bindParam(':id_persona', $id_persona);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $usuario_row = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -40,13 +46,16 @@ class IaChat
                 $respuesta_ia = self::llamarIA($config, $contexto_inactivo, [], $mensaje);
                 $tiempo_ms = round((microtime(true) - $inicio_tiempo) * 1000);
 
-                $id_conversacion_resp = $id_conversacion ?? self::crearConversacion($db, $id_persona, 'inactivo', $mensaje);
+                // Reusar la conversación entrante solo si existe y es de esta persona/tenant; si no, crear nueva
+                $id_conversacion_resp = self::conversacionValida($db, $id_conversacion, $id_persona)
+                    ? $id_conversacion
+                    : self::crearConversacion($db, $id_persona, 'inactivo', $mensaje);
                 self::guardarMensaje($db, $id_conversacion_resp, 'user', $mensaje);
                 self::guardarMensaje($db, $id_conversacion_resp, 'assistant', $respuesta_ia['respuesta'], $respuesta_ia['proveedor'], $tiempo_ms);
 
                 Flight::json([
                     "success" => true,
-                    "id_conversacion" => (int) $id_conversacion_resp,
+                    "id_conversacion" => $id_conversacion_resp,
                     "respuesta" => $respuesta_ia['respuesta'],
                     "proveedor" => $respuesta_ia['proveedor'],
                     "tiempo_ms" => $tiempo_ms
@@ -61,7 +70,8 @@ class IaChat
             $nombre = self::obtenerNombrePersona($db, $id_persona);
 
             // 4. Obtener o crear conversación
-            if (!$id_conversacion) {
+            // Si el id entrante no existe o no pertenece a esta persona/tenant, se crea una nueva
+            if (!self::conversacionValida($db, $id_conversacion, $id_persona)) {
                 $id_conversacion = self::crearConversacion($db, $id_persona, $rol, $mensaje);
             }
 
@@ -75,14 +85,16 @@ class IaChat
             $config = self::obtenerConfiguracion($db);
 
             // 7. Armar contexto según permisos del usuario
-            $stmtUsuario = $db->prepare("SELECT id, super_admin FROM usuarios WHERE id_persona = :id_persona AND activo = 1 LIMIT 1");
-            $stmtUsuario->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+            $stmtUsuario = $db->prepare("SELECT id, super_admin FROM usuarios WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+            $stmtUsuario->bindParam(':id_persona', $id_persona);
+            $stmtUsuario->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmtUsuario->execute();
             $usuarioRow = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
             $id_usuario = $usuarioRow ? (int)$usuarioRow['id'] : null;
             $es_super_admin = $usuarioRow ? (int)($usuarioRow['super_admin'] ?? 0) === 1 : false;
 
-            $contexto = self::armarContexto($db, $id_persona, $rol, $nombre, $config, $id_usuario, $es_super_admin);
+            $fecha_consulta = self::resolverFechaConsulta($mensaje);
+            $contexto = self::armarContexto($db, $id_persona, $rol, $nombre, $config, $id_usuario, $es_super_admin, $fecha_consulta);
 
             // 8. Llamar a la IA (Gemini primero, Groq fallback)
             $inicio_tiempo = microtime(true);
@@ -94,7 +106,7 @@ class IaChat
 
             Flight::json([
                 "success" => true,
-                "id_conversacion" => (int) $id_conversacion,
+                "id_conversacion" => $id_conversacion,
                 "respuesta" => $respuesta_ia['respuesta'],
                 "proveedor" => $respuesta_ia['proveedor'],
                 "tiempo_ms" => $tiempo_ms
@@ -105,17 +117,21 @@ class IaChat
         }
     }
 
-    public static function listarConversaciones($id_persona)
+    public static function listarConversaciones($id_persona = null)
     {
         try {
+            $userData = JWTService::requerirAutenticacion();
+            $id_persona = $userData->id_persona;
+
             $db = Flight::db();
 
             $sentence = $db->prepare("SELECT id, titulo, rol, fecha_creacion, fecha_actualizacion 
                 FROM ia_chat_conversaciones 
-                WHERE id_persona = :id_persona AND activo = 1 
+                WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant 
                 ORDER BY fecha_actualizacion DESC 
                 LIMIT 50");
-            $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+            $sentence->bindParam(':id_persona', $id_persona);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
 
@@ -129,13 +145,22 @@ class IaChat
     public static function obtenerConversacion($id_conversacion)
     {
         try {
+            $userData = JWTService::requerirAutenticacion();
+
             $db = Flight::db();
+
+            // Solo se puede leer una conversación propia
+            if (!self::conversacionValida($db, $id_conversacion, $userData->id_persona)) {
+                Flight::json(["error" => "Conversación no encontrada"], 404);
+                return;
+            }
 
             $sentence = $db->prepare("SELECT id, rol_mensaje, mensaje, proveedor, fecha 
                 FROM ia_chat_mensajes 
-                WHERE id_conversacion = :id_conversacion 
+                WHERE id_conversacion = :id_conversacion AND id_tenant = :id_tenant 
                 ORDER BY fecha ASC");
-            $sentence->bindParam(':id_conversacion', $id_conversacion, PDO::PARAM_INT);
+            $sentence->bindParam(':id_conversacion', $id_conversacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
 
@@ -149,10 +174,19 @@ class IaChat
     public static function eliminarConversacion($id_conversacion)
     {
         try {
+            $userData = JWTService::requerirAutenticacion();
+
             $db = Flight::db();
 
-            $sentence = $db->prepare("UPDATE ia_chat_conversaciones SET activo = 0 WHERE id = :id");
-            $sentence->bindParam(':id', $id_conversacion, PDO::PARAM_INT);
+            // Solo se puede eliminar una conversación propia
+            if (!self::conversacionValida($db, $id_conversacion, $userData->id_persona)) {
+                Flight::json(["error" => "Conversación no encontrada"], 404);
+                return;
+            }
+
+            $sentence = $db->prepare("UPDATE ia_chat_conversaciones SET activo = 0 WHERE id = :id AND id_tenant = :id_tenant");
+            $sentence->bindParam(':id', $id_conversacion);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(["success" => true, "message" => "Conversación eliminada"]);
@@ -165,6 +199,9 @@ class IaChat
     public static function obtenerLog()
     {
         try {
+            $userData = JWTService::requerirAutenticacion();
+            PermisosService::validar($userData, 'chat.ia.usar');
+
             $db = Flight::db();
 
             $limite = isset($_GET['limite']) ? (int) $_GET['limite'] : 50;
@@ -173,7 +210,7 @@ class IaChat
             // Log: pares pregunta/respuesta desde mensajes + conversaciones
             $sentence = $db->prepare("SELECT 
                     m.id,
-                    CONCAT(p.primer_nombre, ' ', p.primer_apellido) as nombre_persona,
+                    CONCAT_WS(' ', p.primer_nombre, p.primer_apellido) as nombre_persona,
                     c.rol,
                     m.mensaje as respuesta,
                     m.proveedor,
@@ -187,10 +224,12 @@ class IaChat
                 INNER JOIN ia_chat_conversaciones c ON m.id_conversacion = c.id
                 INNER JOIN personas p ON c.id_persona = p.id
                 WHERE m.rol_mensaje = 'assistant'
+                AND m.id_tenant = :id_tenant
                 ORDER BY m.fecha DESC
                 LIMIT :limite OFFSET :offset");
             $sentence->bindParam(':limite', $limite, PDO::PARAM_INT);
             $sentence->bindParam(':offset', $offset, PDO::PARAM_INT);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $log = $sentence->fetchAll(PDO::FETCH_ASSOC);
 
@@ -205,7 +244,9 @@ class IaChat
                     SUM(CASE WHEN DATE(m.fecha) = CURDATE() THEN 1 ELSE 0 END) as interacciones_hoy
                 FROM ia_chat_mensajes m
                 INNER JOIN ia_chat_conversaciones c ON m.id_conversacion = c.id
-                WHERE m.rol_mensaje = 'assistant'");
+                WHERE m.rol_mensaje = 'assistant'
+                AND m.id_tenant = :id_tenant");
+            $sentence2->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence2->execute();
             $stats = $sentence2->fetch(PDO::FETCH_ASSOC);
 
@@ -214,7 +255,9 @@ class IaChat
                 FROM ia_chat_mensajes m
                 INNER JOIN ia_chat_conversaciones c ON m.id_conversacion = c.id
                 WHERE m.rol_mensaje = 'assistant'
+                AND m.id_tenant = :id_tenant
                 GROUP BY c.rol");
+            $sentence3->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence3->execute();
             $uso_por_rol = $sentence3->fetchAll(PDO::FETCH_ASSOC);
 
@@ -230,19 +273,22 @@ class IaChat
         }
     }
 
-    public static function verificarAccesoInstitucional($id_persona)
+    public static function verificarAccesoInstitucional($id_persona = null)
     {
-        self::verificarAcceso($id_persona, 'chat_habilitado_institucional');
+        self::verificarAcceso('chat_habilitado_institucional');
     }
 
-    public static function verificarAccesoPadres($id_persona)
+    public static function verificarAccesoPadres($id_persona = null)
     {
-        self::verificarAcceso($id_persona, 'chat_habilitado_padres');
+        self::verificarAcceso('chat_habilitado_padres');
     }
 
-    private static function verificarAcceso($id_persona, $clave_config)
+    private static function verificarAcceso($clave_config)
     {
         try {
+            $userData = JWTService::requerirAutenticacion();
+            $id_persona = $userData->id_persona;
+
             $db = Flight::db();
 
             // 1. Verificar si el chat está habilitado para este portal
@@ -253,9 +299,16 @@ class IaChat
                 return;
             }
 
-            // 2. Verificar que el usuario esté activo
-            $sentence = $db->prepare("SELECT activo FROM usuarios WHERE id_persona = :id_persona LIMIT 1");
-            $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+            // 2. Permiso del sistema (chequeo suave: si no lo tiene, el widget se oculta)
+            if (!self::tienePermisoChat($userData)) {
+                Flight::json(["success" => true, "tiene_acceso" => false, "razon" => "sin_permiso"]);
+                return;
+            }
+
+            // 3. Verificar que el usuario esté activo
+            $sentence = $db->prepare("SELECT activo FROM usuarios WHERE id_persona = :id_persona AND id_tenant = :id_tenant LIMIT 1");
+            $sentence->bindParam(':id_persona', $id_persona);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $usuario = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -264,9 +317,10 @@ class IaChat
                 return;
             }
 
-            // 3. Verificar que tenga al menos un permiso activo
-            $sentence = $db->prepare("SELECT COUNT(*) as total FROM ia_chat_permisos_usuario WHERE id_persona = :id_persona AND activo = 1");
-            $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+            // 4. Verificar que tenga al menos un permiso activo
+            $sentence = $db->prepare("SELECT COUNT(*) as total FROM ia_chat_permisos_usuario WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant");
+            $sentence->bindParam(':id_persona', $id_persona);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $permisos = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -292,27 +346,39 @@ class IaChat
     // MÉTODOS PRIVADOS
     // =====================================================
 
+    /**
+     * Chequeo SUAVE del permiso de chat (sin cortar la ejecución).
+     * Igual criterio que PermisosService pero devolviendo bool: super_admin o '*' pasan.
+     */
+    private static function tienePermisoChat($userData)
+    {
+        if (isset($userData->super_admin) && $userData->super_admin == 1) {
+            return true;
+        }
+        if (isset($userData->permisos)) {
+            $permisos = (array) $userData->permisos;
+            if (in_array('*', $permisos, true) || in_array('chat.ia.usar', $permisos, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static function determinarRol($db, $id_persona)
     {
-        // ¿Es docente?
-        $sentence = $db->prepare("SELECT id FROM docentes WHERE id_persona = :id_persona AND activo = 1 LIMIT 1");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
-        $sentence->execute();
-        if ($sentence->fetch()) {
-            return 'docente';
-        }
-
         // ¿Es colaborador (admin)?
-        $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 LIMIT 1");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         if ($sentence->fetch()) {
             return 'admin';
         }
 
         // ¿Es acudiente?
-        $sentence = $db->prepare("SELECT id FROM acudientes WHERE id_persona = :id_persona AND activo = 1 LIMIT 1");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT id FROM acudientes WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         if ($sentence->fetch()) {
             return 'acudiente';
@@ -323,30 +389,59 @@ class IaChat
 
     private static function obtenerNombrePersona($db, $id_persona)
     {
-        $sentence = $db->prepare("SELECT CONCAT_WS(' ', primer_nombre, primer_apellido) as nombre FROM personas WHERE id = :id");
-        $sentence->bindParam(':id', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT CONCAT_WS(' ', primer_nombre, primer_apellido) as nombre FROM personas WHERE id = :id AND id_tenant = :id_tenant");
+        $sentence->bindParam(':id', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $row = $sentence->fetch(PDO::FETCH_ASSOC);
         return ($row && $row['nombre']) ? trim($row['nombre']) : 'Usuario';
+    }
+
+    /**
+     * Verifica que la conversación exista, esté activa y pertenezca a la persona/tenant.
+     * Evita que un id_conversacion inválido (p. ej. estado viejo del cliente) rompa el INSERT
+     * de mensajes por la FK; en ese caso el flujo crea una conversación nueva.
+     */
+    private static function conversacionValida($db, $id_conversacion, $id_persona)
+    {
+        if (!$id_conversacion) {
+            return false;
+        }
+
+        $sentence = $db->prepare("SELECT 1 FROM ia_chat_conversaciones 
+            WHERE id = :id AND id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant 
+            LIMIT 1");
+        $sentence->bindParam(':id', $id_conversacion);
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentence->execute();
+
+        return (bool) $sentence->fetch();
     }
 
     private static function crearConversacion($db, $id_persona, $rol, $primer_mensaje)
     {
         $titulo = mb_substr($primer_mensaje, 0, 80);
 
-        $sentence = $db->prepare("INSERT INTO ia_chat_conversaciones (id_persona, rol, titulo) VALUES (:id_persona, :rol, :titulo)");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("INSERT INTO ia_chat_conversaciones (id, id_tenant, id_persona, rol, titulo) VALUES (:id, :id_tenant, :id_persona, :rol, :titulo)");
+        $id = Uuid::generar();
+        $sentence->bindValue(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentence->bindParam(':id_persona', $id_persona);
         $sentence->bindParam(':rol', $rol);
         $sentence->bindParam(':titulo', $titulo);
         $sentence->execute();
 
-        return $db->lastInsertId();
+        return $id;
     }
 
     private static function guardarMensaje($db, $id_conversacion, $rol_mensaje, $mensaje, $proveedor = null, $tiempo_ms = null)
     {
-        $sentence = $db->prepare("INSERT INTO ia_chat_mensajes (id_conversacion, rol_mensaje, mensaje, proveedor, tiempo_respuesta_ms) VALUES (:id_conversacion, :rol_mensaje, :mensaje, :proveedor, :tiempo_ms)");
-        $sentence->bindParam(':id_conversacion', $id_conversacion, PDO::PARAM_INT);
+        $sentence = $db->prepare("INSERT INTO ia_chat_mensajes (id, id_tenant, id_conversacion, rol_mensaje, mensaje, proveedor, tiempo_respuesta_ms) VALUES (:id, :id_tenant, :id_conversacion, :rol_mensaje, :mensaje, :proveedor, :tiempo_ms)");
+        $idMsg = Uuid::generar();
+        $sentence->bindValue(':id', $idMsg);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentence->bindParam(':id_conversacion', $id_conversacion);
         $sentence->bindParam(':rol_mensaje', $rol_mensaje);
         $sentence->bindParam(':mensaje', $mensaje);
         $sentence->bindParam(':proveedor', $proveedor);
@@ -356,9 +451,10 @@ class IaChat
 
     private static function obtenerHistorialReciente($db, $id_conversacion, $limite = 10)
     {
-        $sentence = $db->prepare("SELECT rol_mensaje, mensaje FROM ia_chat_mensajes WHERE id_conversacion = :id_conversacion ORDER BY fecha DESC LIMIT :limite");
-        $sentence->bindParam(':id_conversacion', $id_conversacion, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT rol_mensaje, mensaje FROM ia_chat_mensajes WHERE id_conversacion = :id_conversacion AND id_tenant = :id_tenant ORDER BY fecha DESC LIMIT :limite");
+        $sentence->bindParam(':id_conversacion', $id_conversacion);
         $sentence->bindParam(':limite', $limite, PDO::PARAM_INT);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $mensajes = $sentence->fetchAll(PDO::FETCH_ASSOC);
 
@@ -370,7 +466,7 @@ class IaChat
      * Consulta ia_chat_permisos_usuario y por cada tipo permitido
      * llama al método correspondiente para obtener la información
      */
-    private static function armarContexto($db, $id_persona, $rol, $nombre, $config = [], $id_usuario = null, $es_super_admin = false)
+    private static function armarContexto($db, $id_persona, $rol, $nombre, $config = [], $id_usuario = null, $es_super_admin = false, $fecha_consulta = null)
     {
         // Obtener nombre del asistente desde configuración
         $nombre_asistente = $config['nombre_asistente'] ?? 'Lumi';
@@ -400,6 +496,13 @@ class IaChat
         $csv_estudiantes = !empty($ids_estudiantes) ? implode(',', $ids_estudiantes) : '';
         $csv_grupos = !empty($ids_grupos) ? implode(',', $ids_grupos) : '';
 
+        // Foto de contexto global (operativo/financiero) reusando el dashboard.
+        // Solo se calcula si el usuario tiene algún permiso global que la necesite.
+        $codigos = array_column($permisos, 'codigo');
+        $necesitaFoto = in_array('global_operativo', $codigos, true) || in_array('global_financiero', $codigos, true);
+        $fecha_ctx = $fecha_consulta ?: date('Y-m-d');
+        $foto = $necesitaFoto ? self::obtenerFotoContexto($db, $config, $fecha_ctx) : null;
+
         // Por cada permiso, armar el bloque de contexto correspondiente
         foreach ($permisos as $permiso) {
             $codigo = $permiso['codigo'];
@@ -410,7 +513,7 @@ class IaChat
                 continue;
             }
 
-            $contexto .= self::obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos);
+            $contexto .= self::obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos, $foto);
         }
 
         // Agregar documentación de módulos accesibles desde db_master
@@ -452,8 +555,10 @@ class IaChat
                     FROM roles_x_usuario ru
                     INNER JOIN permisos_x_rol pxr ON ru.id_rol = pxr.id_rol
                     WHERE ru.id_usuario = :id_usuario
+                    AND ru.id_tenant = :id_tenant
                 ");
-                $stmtPermisos->bindParam(':id_usuario', $id_usuario, PDO::PARAM_INT);
+                $stmtPermisos->bindParam(':id_usuario', $id_usuario);
+                $stmtPermisos->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $stmtPermisos->execute();
                 $codigos = $stmtPermisos->fetchAll(PDO::FETCH_COLUMN);
 
@@ -508,8 +613,10 @@ class IaChat
             WHERE p.id_persona = :id_persona 
             AND p.activo = 1 
             AND t.activo = 1
+            AND p.id_tenant = :id_tenant
         ");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         return $sentence->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -526,36 +633,26 @@ class IaChat
         $sentence = $db->prepare("
             SELECT DISTINCT a.id_estudiante 
             FROM acudientes a 
-            WHERE a.id_persona = :id_persona AND a.activo = 1
+            WHERE a.id_persona = :id_persona AND a.activo = 1 AND a.id_tenant = :id_tenant
         ");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $hijos = $sentence->fetchAll(PDO::FETCH_COLUMN);
         $ids = array_merge($ids, $hijos);
 
-        // Como docente: estudiantes de sus grupos
-        $sentence = $db->prepare("
-            SELECT DISTINCT eg.id_estudiante
-            FROM docentes d
-            INNER JOIN docentes_x_grupos dg ON d.id = dg.id_docente
-            INNER JOIN estudiantes_x_grupos eg ON dg.id_grupo = eg.id_grupo AND eg.activo = 1
-            WHERE d.id_persona = :id_persona AND d.activo = 1
-        ");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
-        $sentence->execute();
-        $grupo = $sentence->fetchAll(PDO::FETCH_COLUMN);
-        $ids = array_merge($ids, $grupo);
-
         // Como admin/colaborador: todos los estudiantes activos
-        $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 LIMIT 1");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         if ($sentence->fetch()) {
             $sentence2 = $db->prepare("
                 SELECT DISTINCT eg.id_estudiante 
                 FROM estudiantes_x_grupos eg 
-                WHERE eg.activo = 1
+                WHERE eg.activo = 1 AND eg.id_tenant = :id_tenant
             ");
+            $sentence2->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence2->execute();
             $todos = $sentence2->fetchAll(PDO::FETCH_COLUMN);
             $ids = array_merge($ids, $todos);
@@ -565,26 +662,32 @@ class IaChat
     }
 
     /**
-     * Obtiene los IDs de grupos a los que la persona tiene acceso como docente
+     * Obtiene los IDs de grupos (planes) a los que la persona tiene acceso.
+     * Un colaborador activo ve todos los planes; el resto no ve ninguno.
      */
     private static function obtenerIdsGruposAcceso($db, $id_persona)
     {
-        $sentence = $db->prepare("
-            SELECT DISTINCT dg.id_grupo
-            FROM docentes d
-            INNER JOIN docentes_x_grupos dg ON d.id = dg.id_docente AND dg.activo = 1
-            WHERE d.id_persona = :id_persona AND d.activo = 1
-        ");
-        $sentence->bindParam(':id_persona', $id_persona, PDO::PARAM_INT);
+        $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+        $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
-        return $sentence->fetchAll(PDO::FETCH_COLUMN);
+        if (!$sentence->fetch()) {
+            return [];
+        }
+
+        $sentence2 = $db->prepare("SELECT id FROM grupos WHERE id_tenant = :id_tenant");
+        $sentence2->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentence2->execute();
+        return $sentence2->fetchAll(PDO::FETCH_COLUMN);
     }
 
     /**
-     * Retorna el bloque de contexto para un tipo de información
-     * Llama a stored procedures para datos reales, dummy para los pendientes
+     * Retorna el bloque de contexto para un tipo de información.
+     * - Personal (est/grupo): datos reales vía stored procedure.
+     * - Global operativo/financiero: datos reales del dashboard (foto en caché).
+     * - Resto: aún sin fuente de datos, devuelve texto genérico (no inventa).
      */
-    private static function obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos)
+    private static function obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos, $foto = null)
     {
         switch ($codigo) {
             case 'est_personal':
@@ -600,10 +703,26 @@ class IaChat
             case 'grupo_financiero':
                 return self::contextoDummyGrupoFinanciero([]);
             case 'global_operativo':
+                // Datos reales del dashboard (resumen + detalle); si la foto no está, cae a genérico
+                if (is_array($foto) && isset($foto['operativo'])) {
+                    $texto = self::textoContextoOperativo($foto['operativo']);
+                    if (isset($foto['operativo_detalle'])) {
+                        $texto .= self::textoDetalleOperativo($foto['operativo_detalle']);
+                    }
+                    return $texto;
+                }
                 return self::contextoDummyGlobalOperativo();
             case 'global_academico':
                 return self::contextoDummyGlobalAcademico();
             case 'global_financiero':
+                // Datos reales del dashboard (resumen + detalle); si la foto no está, cae a genérico
+                if (is_array($foto) && isset($foto['financiero'])) {
+                    $texto = self::textoContextoFinanciero($foto['financiero']);
+                    if (isset($foto['financiero_detalle'])) {
+                        $texto .= self::textoDetalleFinanciero($foto['financiero_detalle']);
+                    }
+                    return $texto;
+                }
                 return self::contextoDummyGlobalFinanciero();
             default:
                 return "";
@@ -616,9 +735,10 @@ class IaChat
     private static function llamarSP($db, $nombre_sp, $csv_estudiantes, $csv_grupos)
     {
         try {
-            $sentence = $db->prepare("CALL {$nombre_sp}(:ids_est, :ids_gru)");
+            $sentence = $db->prepare("CALL {$nombre_sp}(:ids_est, :ids_gru, :id_tenant)");
             $sentence->bindParam(':ids_est', $csv_estudiantes, PDO::PARAM_STR);
             $sentence->bindParam(':ids_gru', $csv_grupos, PDO::PARAM_STR);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
             $sentence->closeCursor();
@@ -629,183 +749,321 @@ class IaChat
         }
     }
 
+    /**
+     * Obtiene la foto del contexto global reusando el dashboard.
+     * Lee la caché (ia_chat_contexto_cache); si está vencida o no existe, recalcula
+     * con DashboardGerencial y la guarda. El TTL sale de ia_configuracion
+     * (contexto_cache_ttl_min); si la clave no existe o es <= 0, no se cachea.
+     */
+    private static function obtenerFotoContexto($db, $config, $fecha)
+    {
+        $ttlMin = (isset($config['contexto_cache_ttl_min']) && (int) $config['contexto_cache_ttl_min'] > 0)
+            ? (int) $config['contexto_cache_ttl_min']
+            : 0;
+        $esPasado = ($fecha < date('Y-m-d'));
+
+        // 1. Foto vigente en caché para esa fecha
+        $cacheJson = IaChatContextoCache::obtenerVigente($db, $fecha, $ttlMin);
+        if ($cacheJson) {
+            $decoded = json_decode($cacheJson, true);
+            if (is_array($decoded) && isset($decoded['fecha']) && $decoded['fecha'] === $fecha) {
+                return $decoded;
+            }
+        }
+
+        // 2. Recalcular desde el dashboard (fuente única). Si algo falla,
+        //    se devuelve la foto sin bloques para que caiga a texto genérico.
+        try {
+            $foto = [
+                'fecha' => $fecha,
+                'operativo' => DashboardGerencial::resumenOperativoContexto($db, $fecha),
+                'operativo_detalle' => DashboardGerencial::detalleOperativoContexto($db, $fecha),
+                'financiero' => DashboardGerencial::resumenFinancieroContexto($db, $fecha),
+                'financiero_detalle' => DashboardGerencial::detalleFinancieroContexto($db, $fecha)
+            ];
+        } catch (Exception $e) {
+            error_log("Error calculando foto de contexto IA: " . $e->getMessage());
+            return ['fecha' => $fecha];
+        }
+
+        // El pasado se cachea siempre (no cambia); hoy solo si hay TTL configurado.
+        if ($esPasado || $ttlMin > 0) {
+            IaChatContextoCache::guardar($db, $fecha, json_encode($foto));
+        }
+
+        return $foto;
+    }
+
+    /**
+     * Formatea un valor numérico como pesos colombianos para el contexto.
+     */
+    private static function pesos($valor)
+    {
+        return '$' . number_format((float) $valor, 0, ',', '.');
+    }
+
+    /**
+     * Construye el bloque de texto operativo a partir del resumen del dashboard.
+     */
+    private static function textoContextoOperativo($op)
+    {
+        $a = isset($op['asistencia']) ? $op['asistencia'] : [];
+        $c = isset($op['colaboradores']) ? $op['colaboradores'] : [];
+        $al = isset($op['alimentacion']) ? $op['alimentacion'] : [];
+        $fecha = isset($op['fecha']) ? $op['fecha'] : date('Y-m-d');
+
+        $texto = "\nDATOS OPERATIVOS DEL JARDÍN (fecha {$fecha}):\n";
+
+        $texto .= "Asistencia de estudiantes:\n";
+        $texto .= "- Estudiantes activos: " . (int) ($a['total_activos'] ?? 0) . "\n";
+        $texto .= "- Asistieron hoy: " . (int) ($a['total_asistieron'] ?? 0) . " (" . ($a['porcentaje'] ?? 0) . "%)\n";
+        if (!empty($a['es_hoy'])) {
+            $texto .= "- Presentes en este momento: " . (int) ($a['total_presentes_ahora'] ?? 0) . "\n";
+            $texto .= "- Ya salieron: " . (int) ($a['total_salieron'] ?? 0) . "\n";
+        }
+        if (!empty($a['por_grupo'])) {
+            $texto .= "Asistencia por grupo:\n";
+            foreach ($a['por_grupo'] as $g) {
+                $texto .= "  - " . $g['nombre_grupo'] . ": " . (int) $g['asistieron'] . "/" . (int) $g['total'] . " (" . $g['porcentaje'] . "%)\n";
+            }
+        }
+
+        $texto .= "Colaboradores:\n";
+        $texto .= "- Activos (validan jornada): " . (int) ($c['total_activos'] ?? 0) . "\n";
+        if (!empty($c['es_hoy'])) {
+            $texto .= "- Presentes en este momento: " . (int) ($c['presentes'] ?? 0) . "\n";
+        }
+        $texto .= "- Ingresaron: " . (int) ($c['ingresaron'] ?? 0) . " | Salieron: " . (int) ($c['salieron'] ?? 0) . " | En descanso: " . (int) ($c['en_descanso'] ?? 0) . " | Entradas tarde: " . (int) ($c['tarde'] ?? 0) . "\n";
+
+        $texto .= "Alimentación:\n";
+        $texto .= "- Servicios mensuales servidos: " . (int) ($al['mensuales_servidos'] ?? 0) . "/" . (int) ($al['mensuales_contratados'] ?? 0) . " (" . ($al['mensuales_porcentaje'] ?? 0) . "%)\n";
+        $texto .= "- Servicios diarios servidos: " . (int) ($al['diarios_servidos'] ?? 0) . "\n";
+
+        return $texto;
+    }
+
+    /**
+     * Construye el bloque de texto financiero a partir del resumen del dashboard.
+     */
+    private static function textoContextoFinanciero($fin)
+    {
+        $car = isset($fin['cartera']) ? $fin['cartera'] : [];
+        $rec = isset($fin['recaudo']) ? $fin['recaudo'] : [];
+        $fecha = isset($fin['fecha']) ? $fin['fecha'] : date('Y-m-d');
+
+        $texto = "\nDATOS FINANCIEROS DEL JARDÍN (fecha {$fecha}):\n";
+
+        $texto .= "Cartera:\n";
+        $texto .= "- Total facturado: " . self::pesos($car['total_facturado'] ?? 0) . "\n";
+        $texto .= "- Total recaudado: " . self::pesos($car['total_recaudado'] ?? 0) . "\n";
+        $texto .= "- Saldo pendiente: " . self::pesos($car['saldo_pendiente'] ?? 0) . "\n";
+        $texto .= "- Saldo vencido: " . self::pesos($car['saldo_vencido'] ?? 0) . " (" . ($car['porcentaje_vencido'] ?? 0) . "% del pendiente)\n";
+
+        $recHoy = isset($rec['recaudado_hoy']) ? $rec['recaudado_hoy'] : [];
+        $recMes = isset($rec['recaudado_mes']) ? $rec['recaudado_mes'] : [];
+        $recAnio = isset($rec['recaudado_anio']) ? $rec['recaudado_anio'] : [];
+        $texto .= "Recaudo:\n";
+        $texto .= "- Recaudado hoy: " . self::pesos($recHoy['total'] ?? 0) . " (" . (int) ($recHoy['cantidad'] ?? 0) . " pagos)\n";
+        $texto .= "- Recaudado en el mes: " . self::pesos($recMes['total'] ?? 0) . " (" . (int) ($recMes['cantidad'] ?? 0) . " pagos)\n";
+        $texto .= "- Recaudado en el año: " . self::pesos($recAnio['total'] ?? 0) . "\n";
+
+        return $texto;
+    }
+
+    /**
+     * Resuelve la fecha a la que se refiere el mensaje del usuario.
+     * Reconoce "hoy", "ayer", "anteayer" y fechas explícitas (dd/mm/aaaa o
+     * aaaa-mm-dd). Si no detecta nada, retorna hoy. Solo interpreta una fecha.
+     */
+    private static function resolverFechaConsulta($mensaje)
+    {
+        $hoy = date('Y-m-d');
+        $texto = mb_strtolower($mensaje, 'UTF-8');
+
+        // Fecha explícita aaaa-mm-dd
+        if (preg_match('/(\d{4})-(\d{2})-(\d{2})/', $texto, $m)) {
+            $f = sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
+            return self::fechaValidaONull($f) ?: $hoy;
+        }
+
+        // Fecha explícita dd/mm/aaaa (o d/m/aaaa)
+        if (preg_match('#(\d{1,2})/(\d{1,2})/(\d{4})#', $texto, $m)) {
+            $f = sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+            return self::fechaValidaONull($f) ?: $hoy;
+        }
+
+        // Palabras relativas (anteayer antes que ayer por ser superconjunto)
+        if (strpos($texto, 'anteayer') !== false) {
+            return date('Y-m-d', strtotime('-2 day'));
+        }
+        if (strpos($texto, 'ayer') !== false) {
+            return date('Y-m-d', strtotime('-1 day'));
+        }
+
+        return $hoy;
+    }
+
+    /**
+     * Valida que una cadena aaaa-mm-dd sea una fecha real; retorna la fecha o null.
+     */
+    private static function fechaValidaONull($f)
+    {
+        $d = DateTime::createFromFormat('Y-m-d', $f);
+        return ($d && $d->format('Y-m-d') === $f) ? $f : null;
+    }
+
+    /**
+     * Construye el bloque de detalle operativo (asistencia y colaboradores).
+     */
+    private static function textoDetalleOperativo($det)
+    {
+        $texto = "";
+
+        $asis = (isset($det['asistencia']['registros']) && is_array($det['asistencia']['registros']))
+            ? $det['asistencia']['registros'] : [];
+        if (!empty($asis)) {
+            $texto .= "\nDETALLE DE ASISTENCIA POR ESTUDIANTE:\n";
+            foreach ($asis as $r) {
+                $nombre = isset($r['nombre_completo']) ? trim($r['nombre_completo']) : 'Sin nombre';
+                $grupo = $r['nombre_grupo'] ?? 'Sin grupo';
+                $estado = $r['estado'] ?? '';
+                $linea = "- {$nombre} | grupo: {$grupo} | {$estado}";
+                if (!empty($r['hora_ingreso'])) {
+                    $linea .= " | ingreso: " . $r['hora_ingreso'];
+                }
+                if (!empty($r['hora_salida'])) {
+                    $linea .= " | salida: " . $r['hora_salida'];
+                }
+                if (($estado === 'No asistió') && !empty($r['ultima_asistencia'])) {
+                    $linea .= " | última asistencia: " . $r['ultima_asistencia'];
+                }
+                $texto .= $linea . "\n";
+            }
+        }
+
+        $cols = (isset($det['colaboradores']['registros']) && is_array($det['colaboradores']['registros']))
+            ? $det['colaboradores']['registros'] : [];
+        if (!empty($cols)) {
+            $texto .= "\nDETALLE DE COLABORADORES:\n";
+            foreach ($cols as $r) {
+                $nombre = isset($r['nombre_completo']) ? trim($r['nombre_completo']) : 'Sin nombre';
+                $cargo = $r['nombre_cargo'] ?? 'Sin cargo';
+                $estado = $r['estado'] ?? '';
+                $linea = "- {$nombre} | cargo: {$cargo} | {$estado}";
+                if (!empty($r['hora_entrada'])) {
+                    $linea .= " | entrada: " . $r['hora_entrada'];
+                }
+                if (!empty($r['hora_salida'])) {
+                    $linea .= " | salida: " . $r['hora_salida'];
+                }
+                $texto .= $linea . "\n";
+            }
+        }
+
+        return $texto;
+    }
+
+    /**
+     * Construye el bloque de detalle financiero (deudores, recaudo, movimientos).
+     */
+    private static function textoDetalleFinanciero($det)
+    {
+        $texto = "";
+
+        $deudores = (isset($det['cartera']['registros']) && is_array($det['cartera']['registros']))
+            ? $det['cartera']['registros'] : [];
+        if (!empty($deudores)) {
+            $texto .= "\nDETALLE DE CARTERA (deudores, ordenados por saldo vencido):\n";
+            foreach ($deudores as $r) {
+                $nombre = isset($r['nombre_persona']) ? trim($r['nombre_persona']) : 'Sin nombre';
+                $tipo = $r['tipo_persona'] ?? '';
+                $grupoCargo = $r['grupo_o_cargo'] ?? '';
+                $texto .= "- {$nombre} ({$tipo}, {$grupoCargo}) | pendiente: " . self::pesos($r['saldo_pendiente'] ?? 0)
+                    . " | vencido: " . self::pesos($r['saldo_vencido'] ?? 0)
+                    . " | cuentas: " . (int) ($r['cuentas_pendientes'] ?? 0)
+                    . " | días máx. vencido: " . (int) ($r['dias_max_vencido'] ?? 0) . "\n";
+            }
+        }
+
+        $pagos = (isset($det['recaudo']['registros']) && is_array($det['recaudo']['registros']))
+            ? $det['recaudo']['registros'] : [];
+        if (!empty($pagos)) {
+            $texto .= "\nDETALLE DE RECAUDO (pagos del mes):\n";
+            foreach ($pagos as $r) {
+                $nombre = isset($r['nombre_persona']) ? trim($r['nombre_persona']) : 'Sin nombre';
+                $tipoPago = $r['tipo_pago'] ?? '';
+                $fecha = $r['fecha'] ?? '';
+                $texto .= "- {$fecha} | {$nombre} | {$tipoPago} | " . self::pesos($r['valor_recibido'] ?? 0) . "\n";
+            }
+        }
+
+        $movs = (isset($det['movimientos']['registros']) && is_array($det['movimientos']['registros']))
+            ? $det['movimientos']['registros'] : [];
+        if (!empty($movs)) {
+            $texto .= "\nDETALLE DE MOVIMIENTOS FINANCIEROS (del mes):\n";
+            foreach ($movs as $r) {
+                $fecha = $r['fecha'] ?? '';
+                $tipo = $r['tipo'] ?? '';
+                $categoria = $r['categoria'] ?? '';
+                $concepto = $r['concepto'] ?? '';
+                $estado = $r['estado'] ?? '';
+                $texto .= "- {$fecha} | {$tipo} | {$categoria} / {$concepto} | " . self::pesos($r['valor'] ?? 0)
+                    . " | {$estado}\n";
+            }
+        }
+
+        return $texto;
+    }
+
     // =====================================================
-    // CONTEXTOS DUMMY POR TIPO - Reemplazar por queries reales
-    // Cada método recibe los IDs de estudiantes cuando aplica
+    // CONTEXTOS SIN FUENTE DE DATOS AÚN
+    // Devuelven texto genérico para no inventar información.
+    // (Se conservan los métodos; reemplazar por datos reales cuando exista fuente.)
     // =====================================================
 
     private static function contextoDummyEstPersonal($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS PERSONALES DE ESTUDIANTES (acceso a {$cantidad} estudiante(s)):
-- Santiago Morales | 4 años | Grupo: Párvulos A | Docente: María García
-  Acudiente principal: Miguel Morales (padre) | Tel: 310-XXX-XXXX
-  Acudiente secundario: Laura Galindo (madre) | Tel: 311-XXX-XXXX
-  Dirección: Chía, Cundinamarca
-  EPS: Compensar | RH: O+
-
-EOT;
+        return "\nDATOS PERSONALES DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyEstAcademico($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS ACADÉMICOS DE ESTUDIANTES (acceso a {$cantidad} estudiante(s)):
-- Santiago Morales:
-  Sprint actual: Sprint 3 (Febrero 2026)
-  Asistencia mes actual: 15/18 días (83%)
-  Última observación: "Ha mejorado mucho en motricidad fina. Participa activamente."
-  Calificaciones último sprint:
-    Desarrollo cognitivo: Sobresaliente (4.5)
-    Desarrollo social: Excelente (5.0)
-    Motricidad: Sobresaliente (4.5)
-    Comunicativa: Notable (4.0)
-  Pendientes: Ninguno
-
-EOT;
+        return "\nDATOS ACADÉMICOS DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyEstFinanciero($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS FINANCIEROS DE ESTUDIANTES (acceso a {$cantidad} estudiante(s)):
-- Santiago Morales:
-  Pensión mensual: $450.000
-  Saldo pendiente: $450.000 (Febrero 2026, vence 15 Feb)
-  Último pago: $450.000 (15 Ene 2026 - Pensión Enero)
-  Estado general: Al día en pagos anteriores
-  Historial de pagos (últimos 3 meses):
-    Enero 2026: $450.000 ✓ pagado 15/01
-    Diciembre 2025: $450.000 ✓ pagado 13/12
-    Noviembre 2025: $450.000 ✓ pagado 14/11
-
-EOT;
+        return "\nDATOS FINANCIEROS DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGrupoPersonal($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS PERSONALES DE ESTUDIANTES DEL GRUPO (acceso a {$cantidad} estudiante(s)):
-- Santiago Morales | 4 años | Grupo: Párvulos A
-  Acudiente: Miguel Morales (padre) | Tel: 310-XXX-XXXX
-- Valentina López | 3 años | Grupo: Párvulos A
-  Acudiente: Andrea López (madre) | Tel: 312-XXX-XXXX
-- Mateo Rodríguez | 4 años | Grupo: Párvulos A
-  Acudiente: Carlos Rodríguez (padre) | Tel: 315-XXX-XXXX
-- Isabella Martínez | 3 años | Grupo: Párvulos A
-  Acudiente: Paula Martínez (madre) | Tel: 318-XXX-XXXX
-- Samuel García | 4 años | Grupo: Párvulos A
-  Acudiente: Andrés García (padre) | Tel: 320-XXX-XXXX
-
-EOT;
+        return "\nDATOS PERSONALES DEL GRUPO: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGrupoAcademico($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS ACADÉMICOS DEL GRUPO (acceso a {$cantidad} estudiante(s)):
-Sprint actual: Sprint 3 (Febrero 2026)
-
-Resumen de asistencia del grupo:
-- Promedio asistencia: 87%
-- Presentes hoy: 13/15
-
-Calificaciones del grupo (promedio por área):
-- Desarrollo cognitivo: 4.3
-- Desarrollo social: 4.6
-- Motricidad: 4.1
-- Comunicativa: 3.9
-
-Estudiantes que requieren apoyo:
-- Mateo Rodríguez: Requiere apoyo en lenguaje (comunicativa: 3.2)
-
-Pendientes docente:
-- Observaciones semanales (vence Viernes)
-- Calificaciones corte 1 (vence 28 Feb)
-
-EOT;
+        return "\nDATOS ACADÉMICOS DEL GRUPO: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGrupoFinanciero($ids_estudiantes)
     {
-        $cantidad = count($ids_estudiantes);
-        return <<<EOT
-
-DATOS FINANCIEROS DEL GRUPO (acceso a {$cantidad} estudiante(s)):
-- Familias al día: 12 de 15 (80%)
-- Familias en mora: 3
-  - Familia Rodríguez: $450.000 pendiente (Febrero)
-  - Familia López: $900.000 pendiente (Enero + Febrero)
-  - Familia García: $450.000 pendiente (Febrero)
-- Total pendiente del grupo: $1.800.000
-
-EOT;
+        return "\nDATOS FINANCIEROS DEL GRUPO: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGlobalOperativo()
     {
-        return <<<EOT
-
-DATOS OPERATIVOS DEL JARDÍN:
-- Estudiantes activos: 85
-- Docentes: 8 | Colaboradores: 12
-- Ocupación: 85% (85 de 100 cupos)
-- Horario: Lunes a Viernes 7:00 AM - 5:00 PM
-- Dirección: Chía, Cundinamarca
-
-Distribución por grupos:
-  Sala cuna (0-1 año): 10 niños - Docente: Ana Ruiz
-  Caminadores (1-2 años): 12 niños - Docente: Laura Torres
-  Párvulos A (3-4 años): 15 niños - Docente: María García
-  Párvulos B (3-4 años): 14 niños - Docente: Carmen Díaz
-  Pre-jardín A (4-5 años): 18 niños - Docente: Patricia Gómez
-  Pre-jardín B (4-5 años): 16 niños - Docente: Sofía Herrera
-
-Asistencia hoy: 78/85 presentes (91.8%)
-Inasistencias reportadas: 5 | Sin reporte: 2
-
-EOT;
+        return "\nDATOS OPERATIVOS DEL JARDÍN: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGlobalAcademico()
     {
-        return <<<EOT
-
-DATOS ACADÉMICOS GLOBALES DEL JARDÍN:
-- Sprint actual: Sprint 3 (Febrero 2026)
-- Promedio general de calificaciones: 4.2 / 5.0
-- Área con mejor rendimiento: Desarrollo social (4.6)
-- Área con menor rendimiento: Comunicativa (3.8)
-- Estudiantes con todas las áreas en Sobresaliente o superior: 23 (27%)
-- Estudiantes que requieren apoyo: 8 (9.4%)
-- Calificaciones pendientes por registrar: 12 tareas
-
-EOT;
+        return "\nDATOS ACADÉMICOS GLOBALES DEL JARDÍN: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGlobalFinanciero()
     {
-        return <<<EOT
-
-DATOS FINANCIEROS GLOBALES DEL JARDÍN (mes actual):
-- Total facturado: $38.250.000
-- Total recaudado: $31.500.000
-- Cartera pendiente: $6.750.000
-- Familias en mora: 8 de 85 (9.4%)
-- Porcentaje de recaudo: 82.4%
-- Familias al día: 77 de 85 (90.6%)
-
-EOT;
+        return "\nDATOS FINANCIEROS GLOBALES DEL JARDÍN: sección sin datos disponibles por el momento.\n";
     }
 
     // =====================================================
@@ -814,36 +1072,114 @@ EOT;
 
     private static function llamarIA($config, $contexto, $historial, $mensaje_usuario)
     {
-        // Intentar Gemini primero
-        $gemini_key = $config['gemini_api_key'] ?? null;
-        if ($gemini_key) {
-            $resultado = self::llamarGemini($gemini_key, $contexto, $historial, $mensaje_usuario);
-            if ($resultado['success']) {
-                return ["respuesta" => $resultado['respuesta'], "proveedor" => "gemini"];
-            }
-            error_log("Gemini falló: " . ($resultado['error'] ?? 'desconocido'));
+        // Cadena de proveedores para texto (misma idea que ia_vision_cadena, pero con
+        // modelos de texto). Formato: "proveedor|modelo;proveedor|modelo". Se prueba en
+        // orden y se cae al siguiente si el proveedor falla.
+        $cadenaRaw = isset($config['ia_chat_cadena']) ? trim($config['ia_chat_cadena']) : '';
+        $pasos = self::parsearCadenaChat($cadenaRaw);
+
+        if (empty($pasos)) {
+            error_log("IaChat: no hay cadena de proveedores configurada (ia_chat_cadena)");
+            return self::respuestaFallback();
         }
 
-        // Fallback a Groq
-        $groq_key = $config['groq_api_key'] ?? null;
-        if ($groq_key) {
-            $resultado = self::llamarGroq($groq_key, $contexto, $historial, $mensaje_usuario);
-            if ($resultado['success']) {
-                return ["respuesta" => $resultado['respuesta'], "proveedor" => "groq"];
+        foreach ($pasos as $paso) {
+            $proveedor = $paso['proveedor'];
+            $modelo = $paso['modelo'];
+            $r = null;
+
+            if ($proveedor === 'gemini') {
+                $key = $config['gemini_api_key'] ?? null;
+                if (!$key) {
+                    error_log("IaChat - se salta 'gemini': falta gemini_api_key");
+                    continue;
+                }
+                $r = self::llamarGemini($key, $modelo, $contexto, $historial, $mensaje_usuario);
+            } elseif ($proveedor === 'groq') {
+                $key = $config['groq_api_key'] ?? null;
+                if (!$key) {
+                    error_log("IaChat - se salta 'groq': falta groq_api_key");
+                    continue;
+                }
+                $r = self::llamarChatOpenAI(self::URL_GROQ, $key, $modelo, $contexto, $historial, $mensaje_usuario);
+            } elseif ($proveedor === 'openrouter') {
+                $key = $config['openrouter_api_key'] ?? null;
+                if (!$key) {
+                    error_log("IaChat - se salta 'openrouter': falta openrouter_api_key");
+                    continue;
+                }
+                $r = self::llamarChatOpenAI(self::URL_OPENROUTER, $key, $modelo, $contexto, $historial, $mensaje_usuario);
+            } elseif ($proveedor === 'qwen') {
+                $key = $config['qwen_api_key'] ?? null;
+                $baseUrl = isset($config['qwen_base_url']) ? trim($config['qwen_base_url']) : null;
+                if (!$key) {
+                    error_log("IaChat - se salta 'qwen': falta qwen_api_key");
+                    continue;
+                }
+                if (!$baseUrl) {
+                    error_log("IaChat - se salta 'qwen': falta qwen_base_url");
+                    continue;
+                }
+                $url = rtrim($baseUrl, '/') . '/chat/completions';
+                $r = self::llamarChatOpenAI($url, $key, $modelo, $contexto, $historial, $mensaje_usuario);
+            } else {
+                error_log("IaChat - proveedor no soportado en la cadena: {$proveedor}");
+                continue;
             }
-            error_log("Groq falló: " . ($resultado['error'] ?? 'desconocido'));
+
+            if (!empty($r['success'])) {
+                return ["respuesta" => $r['respuesta'], "proveedor" => $proveedor];
+            }
+            error_log("IaChat - proveedor '{$proveedor}' ({$modelo}) falló: " . ($r['error'] ?? 'desconocido'));
         }
 
+        return self::respuestaFallback();
+    }
+
+    /**
+     * Mensaje de respuesta cuando ningún proveedor de la cadena responde.
+     */
+    private static function respuestaFallback()
+    {
         return [
             "respuesta" => "Lo siento, en este momento no puedo procesar tu consulta. Por favor intenta de nuevo en unos minutos o contacta a la administración del jardín.",
             "proveedor" => "fallback"
         ];
     }
 
-    private static function llamarGemini($api_key, $contexto, $historial, $mensaje_usuario)
+    /**
+     * Parsea "proveedor|modelo;proveedor|modelo" a una lista ordenada de pasos.
+     * Ignora trozos vacíos o mal formados.
+     */
+    private static function parsearCadenaChat($cadena)
+    {
+        $pasos = [];
+        if (trim($cadena) === '') {
+            return $pasos;
+        }
+        foreach (explode(';', $cadena) as $trozo) {
+            $trozo = trim($trozo);
+            if ($trozo === '') {
+                continue;
+            }
+            $partes = explode('|', $trozo, 2);
+            if (count($partes) !== 2) {
+                continue;
+            }
+            $proveedor = strtolower(trim($partes[0]));
+            $modelo = trim($partes[1]);
+            if ($proveedor === '' || $modelo === '') {
+                continue;
+            }
+            $pasos[] = ['proveedor' => $proveedor, 'modelo' => $modelo];
+        }
+        return $pasos;
+    }
+
+    private static function llamarGemini($api_key, $modelo, $contexto, $historial, $mensaje_usuario)
     {
         try {
-            $url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" . $api_key;
+            $url = "https://generativelanguage.googleapis.com/v1/models/" . $modelo . ":generateContent?key=" . $api_key;
 
             $contents = [];
 
@@ -894,11 +1230,13 @@ EOT;
         }
     }
 
-    private static function llamarGroq($api_key, $contexto, $historial, $mensaje_usuario)
+    /**
+     * Llamada de chat a un endpoint OpenAI-compatible (groq / openrouter / qwen).
+     * Envía el contexto como 'system' y el historial + mensaje como turnos.
+     */
+    private static function llamarChatOpenAI($url, $api_key, $modelo, $contexto, $historial, $mensaje_usuario)
     {
         try {
-            $url = "https://api.groq.com/openai/v1/chat/completions";
-
             $messages = [];
             $messages[] = ["role" => "system", "content" => $contexto . "\n\nResponde siempre en español."];
 
@@ -914,7 +1252,7 @@ EOT;
             }
 
             $body = json_encode([
-                "model" => "llama-3.3-70b-versatile",
+                "model" => $modelo,
                 "messages" => $messages,
                 "temperature" => 0.7,
                 "max_tokens" => 1024
@@ -932,8 +1270,12 @@ EOT;
 
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_error = curl_error($ch);
             curl_close($ch);
 
+            if ($curl_error) {
+                return ["success" => false, "error" => "conexión: " . $curl_error];
+            }
             if ($http_code !== 200) {
                 return ["success" => false, "error" => "HTTP " . $http_code];
             }
@@ -952,7 +1294,8 @@ EOT;
 
     private static function obtenerConfiguracion($db)
     {
-        $sentence = $db->prepare("SELECT clave, valor FROM ia_configuracion");
+        $sentence = $db->prepare("SELECT clave, valor FROM ia_configuracion WHERE id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $rows = $sentence->fetchAll(PDO::FETCH_ASSOC);
 

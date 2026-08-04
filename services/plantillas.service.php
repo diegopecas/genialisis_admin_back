@@ -21,9 +21,11 @@ class Plantillas
                        tp.codigo as tipo_codigo, tp.nombre as tipo_nombre
                 FROM plantillas p
                 INNER JOIN tipos_plantillas tp ON p.id_tipo_plantilla = tp.id
+                WHERE p.id_tenant = :id_tenant
                 ORDER BY tp.nombre, p.clave
             ");
 
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -49,11 +51,13 @@ class Plantillas
             INNER JOIN tipos_plantillas tp ON p.id_tipo_plantilla = tp.id
             WHERE tp.codigo = :codigo_tipo
             AND p.clave = :clave_plantilla
+            AND p.id_tenant = :id_tenant
             LIMIT 1
         ");
 
             $sentence->bindParam(':codigo_tipo', $codigoTipo);
             $sentence->bindParam(':clave_plantilla', $clavePlantilla);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
@@ -109,10 +113,12 @@ class Plantillas
                 FROM plantillas p
                 INNER JOIN tipos_plantillas tp ON p.id_tipo_plantilla = tp.id
                 WHERE tp.codigo = :codigo_tipo
+                AND p.id_tenant = :id_tenant
                 ORDER BY p.clave
             ");
 
             $sentence->bindParam(':codigo_tipo', $codigoTipo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
@@ -138,10 +144,12 @@ class Plantillas
                 FROM plantillas p
                 INNER JOIN tipos_plantillas tp ON p.id_tipo_plantilla = tp.id
                 WHERE p.id = :id
+                AND p.id_tenant = :id_tenant
                 LIMIT 1
             ");
 
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
@@ -181,11 +189,13 @@ class Plantillas
                 SET titulo = :titulo,
                     contenido = :contenido
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':titulo', $titulo);
             $sentence->bindParam(':contenido', $contenido);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
 

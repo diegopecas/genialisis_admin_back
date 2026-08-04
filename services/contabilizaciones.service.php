@@ -18,9 +18,9 @@ class Contabilizaciones
             INNER JOIN tipos_contabilizacion tc ON c.id_tipo_contabilizacion = tc.id
             INNER JOIN usuarios u ON c.id_usuario_contabilizacion = u.id
             INNER JOIN personas p ON u.id_persona = p.id
-            WHERE 1=1";
+            WHERE 1=1 AND c.id_tenant = :id_tenant";
         
-        $params = array();
+        $params = array(':id_tenant' => TenantContext::id());
         
         if ($fecha_inicio) {
             $sql .= " AND DATE(c.fecha_contabilizacion) >= :fecha_inicio";
@@ -75,9 +75,9 @@ class Contabilizaciones
             LEFT JOIN actividades_colaboradores ac ON cd.id_actividad_colaborador = ac.id
             LEFT JOIN colaboradores col ON ac.id_colaborador = col.id
             LEFT JOIN personas pc ON col.id_persona = pc.id
-            WHERE 1=1";
+            WHERE 1=1 AND c.id_tenant = :id_tenant";
         
-        $params = array();
+        $params = array(':id_tenant' => TenantContext::id());
         
         if ($fecha_inicio) {
             $sql .= " AND DATE(c.fecha_contabilizacion) >= :fecha_inicio";
@@ -122,8 +122,9 @@ class Contabilizaciones
             INNER JOIN tipos_contabilizacion tc ON c.id_tipo_contabilizacion = tc.id
             INNER JOIN usuarios u ON c.id_usuario_contabilizacion = u.id
             INNER JOIN personas p ON u.id_persona = p.id
-            WHERE c.id = :id");
+            WHERE c.id = :id AND c.id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -180,10 +181,11 @@ class Contabilizaciones
         INNER JOIN colaboradores col ON ac_p.id_colaborador = col.id
         INNER JOIN personas p ON col.id_persona = p.id
         
-        WHERE cd_p.id_contabilizacion = :id_contabilizacion
+        WHERE cd_p.id_contabilizacion = :id_contabilizacion AND cdc.id_tenant = :id_tenant
         ORDER BY p.primer_apellido, p.primer_nombre, cdc.id");
         
         $sentence->bindParam(':id_contabilizacion', $id_contabilizacion);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -220,10 +222,13 @@ class Contabilizaciones
             $id_tipo_contabilizacion = 1; // Cruce entre actividades
             
             $sentence = $db->prepare("INSERT INTO contabilizaciones 
-                (id_tipo_contabilizacion, fecha_contabilizacion, 
+                (id, id_tenant, id_tipo_contabilizacion, fecha_contabilizacion, 
                 id_usuario_contabilizacion, observaciones, minutos_total, valor_total) 
-                VALUES (:id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, NULL)");
+                VALUES (:id, :id_tenant, :id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, NULL)");
             
+            $idContab = Uuid::generar();
+            $sentence->bindValue(':id', $idContab);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_tipo', $id_tipo_contabilizacion);
             $sentence->bindParam(':fecha', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario', $id_usuario_contabilizacion);
@@ -231,7 +236,7 @@ class Contabilizaciones
             $sentence->bindParam(':minutos_total', $minutos_a_cruzar);
             $sentence->execute();
             
-            $id_contabilizacion = $db->lastInsertId();
+            $id_contabilizacion = $idContab;
 
             // 4. Aplicar minutos a PERMISOS (FIFO) y guardar IDs
             $ids_detalles_permisos = array();
@@ -360,10 +365,13 @@ class Contabilizaciones
 
             // ✅ CREAR UNA SOLA CONTABILIZACIÓN para TODOS los colaboradores
             $sentence = $db->prepare("INSERT INTO contabilizaciones 
-                (id_tipo_contabilizacion, fecha_contabilizacion, 
+                (id, id_tenant, id_tipo_contabilizacion, fecha_contabilizacion, 
                 id_usuario_contabilizacion, observaciones, minutos_total, valor_total) 
-                VALUES (:id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, NULL)");
+                VALUES (:id, :id_tenant, :id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, NULL)");
             
+            $idContab = Uuid::generar();
+            $sentence->bindValue(':id', $idContab);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_tipo', $id_tipo_contabilizacion);
             $sentence->bindParam(':fecha', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario', $id_usuario_contabilizacion);
@@ -371,7 +379,7 @@ class Contabilizaciones
             $sentence->bindParam(':minutos_total', $minutos_total_general);
             $sentence->execute();
             
-            $id_contabilizacion = $db->lastInsertId();
+            $id_contabilizacion = $idContab;
 
             // ✅ AGREGAR DETALLES de TODOS los colaboradores a la MISMA contabilización
             $resultados = array();
@@ -483,36 +491,43 @@ class Contabilizaciones
             FROM actividades_colaboradores ac
             LEFT JOIN contabilizaciones_detalle cd ON cd.id_actividad_colaborador = ac.id
             WHERE ac.id IN ($placeholders)
+            AND ac.id_tenant = ?
             GROUP BY ac.id
             HAVING minutos_disponibles > 0
             ORDER BY ac.fecha_aprobacion ASC";
         
         $sentence = $db->prepare($query);
-        $sentence->execute($ids);
+        $sentence->execute(array_merge($ids, [TenantContext::id()]));
         return $sentence->fetchAll();
     }
 
     private static function insertarDetalle($db, $id_contabilizacion, $id_actividad, $minutos_aplicados)
     {
         $sentenceDetalle = $db->prepare("INSERT INTO contabilizaciones_detalle 
-            (id_contabilizacion, id_actividad_colaborador, minutos_aplicados) 
-            VALUES (:id_contabilizacion, :id_actividad, :minutos_aplicados)");
+            (id, id_tenant, id_contabilizacion, id_actividad_colaborador, minutos_aplicados) 
+            VALUES (:id, :id_tenant, :id_contabilizacion, :id_actividad, :minutos_aplicados)");
         
+        $idCD = Uuid::generar();
+        $sentenceDetalle->bindValue(':id', $idCD);
+        $sentenceDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentenceDetalle->bindParam(':id_contabilizacion', $id_contabilizacion);
         $sentenceDetalle->bindParam(':id_actividad', $id_actividad);
         $sentenceDetalle->bindParam(':minutos_aplicados', $minutos_aplicados);
         $sentenceDetalle->execute();
         
         // Retornar el ID del detalle insertado
-        return $db->lastInsertId();
+        return $idCD;
     }
 
     private static function insertarCruce($db, $id_detalle_permiso, $id_detalle_hora, $minutos_cruzados)
     {
         $sentence = $db->prepare("INSERT INTO contabilizaciones_detalle_cruces 
-            (id_detalle_permiso, id_detalle_hora, minutos_cruzados) 
-            VALUES (:id_permiso, :id_hora, :minutos)");
+            (id, id_tenant, id_detalle_permiso, id_detalle_hora, minutos_cruzados) 
+            VALUES (:id, :id_tenant, :id_permiso, :id_hora, :minutos)");
         
+        $idCruce = Uuid::generar();
+        $sentence->bindValue(':id', $idCruce);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->bindParam(':id_permiso', $id_detalle_permiso);
         $sentence->bindParam(':id_hora', $id_detalle_hora);
         $sentence->bindParam(':minutos', $minutos_cruzados);
@@ -530,12 +545,13 @@ class Contabilizaciones
             id_estado = :estado,
             id_usuario_contabilizacion = :id_usuario,
             fecha_contabilizacion = :fecha
-            WHERE id = :id");
+            WHERE id = :id AND id_tenant = :id_tenant");
         
         $update->bindParam(':estado', $nuevo_estado);
         $update->bindParam(':id_usuario', $id_usuario);
         $update->bindParam(':fecha', $fecha);
         $update->bindParam(':id', $id_actividad);
+        $update->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $update->execute();
     }
 
@@ -558,8 +574,9 @@ class Contabilizaciones
                 $s = $db->prepare("SELECT ac.minutos_totales, tac.valor_hora 
                     FROM actividades_colaboradores ac
                     INNER JOIN tipos_actividades_colaboradores tac ON ac.id_tipo_actividad = tac.id
-                    WHERE ac.id = :id");
+                    WHERE ac.id = :id AND ac.id_tenant = :id_tenant");
                 $s->bindParam(':id', $id);
+                $s->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $s->execute();
                 $r = $s->fetch();
                 if ($r) {
@@ -574,10 +591,13 @@ class Contabilizaciones
 
             // Crear contabilización
             $sentence = $db->prepare("INSERT INTO contabilizaciones 
-                (id_tipo_contabilizacion, fecha_contabilizacion, id_usuario_contabilizacion, 
+                (id, id_tenant, id_tipo_contabilizacion, fecha_contabilizacion, id_usuario_contabilizacion, 
                 observaciones, minutos_total, valor_total) 
-                VALUES (:id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, :valor_total)");
+                VALUES (:id, :id_tenant, :id_tipo, :fecha, :id_usuario, :observaciones, :minutos_total, :valor_total)");
 
+            $idContabNom = Uuid::generar();
+            $sentence->bindValue(':id', $idContabNom);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_tipo', $id_tipo_contabilizacion);
             $sentence->bindParam(':fecha', $fecha_contabilizacion);
             $sentence->bindParam(':id_usuario', $id_usuario_contabilizacion);
@@ -586,14 +606,18 @@ class Contabilizaciones
             $sentence->bindParam(':valor_total', $total_valor);
             $sentence->execute();
 
-            $id_contabilizacion = $db->lastInsertId();
+            $id_contabilizacion = $idContabNom;
 
             // Agregar detalles
             foreach ($ids as $id) {
                 $sentenceDetalle = $db->prepare("INSERT INTO contabilizaciones_detalle 
-                    (id_contabilizacion, id_actividad_colaborador, minutos_aplicados) 
-                    SELECT :id_contabilizacion, :id_actividad, minutos_totales 
-                    FROM actividades_colaboradores WHERE id = :id_actividad2");
+                    (id, id_tenant, id_contabilizacion, id_actividad_colaborador, minutos_aplicados) 
+                    SELECT :id, :id_tenant, :id_contabilizacion, :id_actividad, minutos_totales 
+                    FROM actividades_colaboradores WHERE id = :id_actividad2 AND id_tenant = :id_tenant_f");
+                $idCDNom = Uuid::generar();
+                $sentenceDetalle->bindValue(':id', $idCDNom);
+                $sentenceDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                $sentenceDetalle->bindValue(':id_tenant_f', TenantContext::id(), PDO::PARAM_INT);
                 $sentenceDetalle->bindParam(':id_contabilizacion', $id_contabilizacion);
                 $sentenceDetalle->bindParam(':id_actividad', $id);
                 $sentenceDetalle->bindParam(':id_actividad2', $id);
@@ -604,10 +628,11 @@ class Contabilizaciones
                     id_estado = 4, 
                     id_usuario_contabilizacion = :id_usuario,
                     fecha_contabilizacion = :fecha 
-                    WHERE id = :id");
+                    WHERE id = :id AND id_tenant = :id_tenant");
                 $updateEstado->bindParam(':id_usuario', $id_usuario_contabilizacion);
                 $updateEstado->bindParam(':fecha', $fecha_contabilizacion);
                 $updateEstado->bindParam(':id', $id);
+                $updateEstado->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $updateEstado->execute();
             }
 
@@ -635,13 +660,15 @@ class Contabilizaciones
             $id = Flight::request()->data['id'];
 
             // Eliminar detalles primero
-            $sentenceDetalle = $db->prepare("DELETE FROM contabilizaciones_detalle WHERE id_contabilizacion = :id");
+            $sentenceDetalle = $db->prepare("DELETE FROM contabilizaciones_detalle WHERE id_contabilizacion = :id AND id_tenant = :id_tenant");
             $sentenceDetalle->bindParam(':id', $id);
+            $sentenceDetalle->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceDetalle->execute();
 
             // Eliminar contabilización
-            $sentence = $db->prepare("DELETE FROM contabilizaciones WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM contabilizaciones WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             $db->commit();

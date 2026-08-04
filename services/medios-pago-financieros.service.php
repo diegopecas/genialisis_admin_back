@@ -8,8 +8,10 @@ class MediosPagoFinancieros {
                 SELECT m.*, t.nombre as tipo_nombre 
                 FROM medios_pago_financieros m
                 INNER JOIN tipos_medios_pago_financieros t ON m.id_tipo_medio_pago = t.id
+                WHERE m.id_tenant = :id_tenant
                 ORDER BY m.orden, m.nombre
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -27,8 +29,10 @@ class MediosPagoFinancieros {
                 FROM medios_pago_financieros m
                 INNER JOIN tipos_medios_pago_financieros t ON m.id_tipo_medio_pago = t.id
                 WHERE m.id = :id
+                AND m.id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -46,9 +50,11 @@ class MediosPagoFinancieros {
                 FROM medios_pago_financieros m
                 INNER JOIN tipos_medios_pago_financieros t ON m.id_tipo_medio_pago = t.id
                 WHERE m.id_tipo_medio_pago = :id_tipo
+                AND m.id_tenant = :id_tenant
                 ORDER BY m.orden, m.nombre
             ");
             $sentence->bindParam(':id_tipo', $id_tipo);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -63,16 +69,19 @@ class MediosPagoFinancieros {
             $db = Flight::db();
             $data = Flight::request()->data;
 
+            $id = Uuid::generar();
             $sentence = $db->prepare("
                 INSERT INTO medios_pago_financieros 
-                (nombre, id_tipo_medio_pago, numero_cuenta, icono, color, descripcion, orden) 
-                VALUES (:nombre, :id_tipo_medio_pago, :numero_cuenta, :icono, :color, :descripcion, :orden)
+                (id, id_tenant, nombre, id_tipo_medio_pago, numero_cuenta, icono, color, descripcion, orden) 
+                VALUES (:id, :id_tenant, :nombre, :id_tipo_medio_pago, :numero_cuenta, :icono, :color, :descripcion, :orden)
             ");
 
             $icono = $data['icono'] ?? '?';
             $color = $data['color'] ?? '#808080';
             $orden = $data['orden'] ?? 0;
 
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':nombre', $data['nombre']);
             $sentence->bindParam(':id_tipo_medio_pago', $data['id_tipo_medio_pago']);
             $sentence->bindParam(':numero_cuenta', $data['numero_cuenta']);
@@ -82,7 +91,6 @@ class MediosPagoFinancieros {
             $sentence->bindParam(':orden', $orden);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
             
             Flight::json(array('id' => $id));
         } catch (Exception $e) {
@@ -100,7 +108,7 @@ class MediosPagoFinancieros {
                 UPDATE medios_pago_financieros 
                 SET nombre = :nombre, id_tipo_medio_pago = :id_tipo_medio_pago, numero_cuenta = :numero_cuenta, 
                     icono = :icono, color = :color, descripcion = :descripcion, orden = :orden
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $icono = $data['icono'] ?? '?';
@@ -115,6 +123,7 @@ class MediosPagoFinancieros {
             $sentence->bindParam(':color', $color);
             $sentence->bindParam(':descripcion', $data['descripcion']);
             $sentence->bindParam(':orden', $orden);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             self::getById($data['id']);
@@ -129,8 +138,9 @@ class MediosPagoFinancieros {
             $db = Flight::db();
             $id = Flight::request()->data['id'];
 
-            $sentence = $db->prepare("DELETE FROM medios_pago_financieros WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM medios_pago_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id));

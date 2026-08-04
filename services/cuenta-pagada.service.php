@@ -4,7 +4,8 @@ class CuentaPagada
     public static function getAll()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("select id, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha from cuenta_pagada");
+        $sentence = $db->prepare("select id, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha from cuenta_pagada where id_tenant = :id_tenant");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -13,8 +14,9 @@ class CuentaPagada
     public static function getById($id)
     {
         $db = Flight::db();
-        $sentence = $db->prepare("select id, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha from cuenta_pagada where id = :id");
+        $sentence = $db->prepare("select id, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha from cuenta_pagada where id = :id and id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -30,14 +32,17 @@ class CuentaPagada
                 cp.id_pago_recibido,
                 cp.valor_aplicado,
                 cp.fecha,
+                cpc.fecha AS fecha_cobro,
                 ps.id AS id_producto_servicio,
                 ps.nombre AS nombre_producto_servicio
             FROM cuenta_pagada cp
             INNER JOIN cuentas_por_cobrar cpc ON cp.id_cuenta_por_cobrar = cpc.id
             inner join productos_servicios ps on ps.id = cpc.id_producto_servicio
             WHERE cp.id_pago_recibido = :id_pago_recibido
+            AND cp.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id_pago_recibido', $id_pago_recibido);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -65,10 +70,12 @@ class CuentaPagada
                 tipos_pagos tp ON pr.id_tipo_pago = tp.id
             WHERE 
                 cp.id_cuenta_por_cobrar = :id_cuenta_por_cobrar
+                AND cp.id_tenant = :id_tenant
             ORDER BY
                 pr.fecha DESC
         ");
         $sentence->bindParam(':id_cuenta_por_cobrar', $id_cuenta_por_cobrar);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -82,15 +89,17 @@ class CuentaPagada
         $valor_aplicado = Flight::request()->data['valor_aplicado'];
         $fecha = Flight::request()->data['fecha'];
 
-        $sentence = $db->prepare("insert into cuenta_pagada(id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) values (:id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)");
+        $id = Uuid::generar();
+        $sentence = $db->prepare("insert into cuenta_pagada(id, id_tenant, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) values (:id, :id_tenant, :id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)");
 
+        $sentence->bindValue(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->bindParam(':id_cuenta_por_cobrar', $id_cuenta_por_cobrar);
         $sentence->bindParam(':id_pago_recibido', $id_pago_recibido);
         $sentence->bindParam(':valor_aplicado', $valor_aplicado);
         $sentence->bindParam(':fecha', $fecha);
 
         $sentence->execute();
-        $id = $db->lastInsertId();
         Flight::json(array('id' => $id));
     }
 
@@ -103,13 +112,14 @@ class CuentaPagada
         $valor_aplicado = Flight::request()->data['valor_aplicado'];
         $fecha = Flight::request()->data['fecha'];
 
-        $sentence = $db->prepare("update cuenta_pagada set id_cuenta_por_cobrar = :id_cuenta_por_cobrar, id_pago_recibido = :id_pago_recibido, valor_aplicado = :valor_aplicado, fecha = :fecha where id = :id");
+        $sentence = $db->prepare("update cuenta_pagada set id_cuenta_por_cobrar = :id_cuenta_por_cobrar, id_pago_recibido = :id_pago_recibido, valor_aplicado = :valor_aplicado, fecha = :fecha where id = :id and id_tenant = :id_tenant");
 
         $sentence->bindParam(':id', $id);
         $sentence->bindParam(':id_cuenta_por_cobrar', $id_cuenta_por_cobrar);
         $sentence->bindParam(':id_pago_recibido', $id_pago_recibido);
         $sentence->bindParam(':valor_aplicado', $valor_aplicado);
         $sentence->bindParam(':fecha', $fecha);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
         $sentence->execute();
         self::getById($id);
@@ -119,8 +129,9 @@ class CuentaPagada
     {
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("delete from cuenta_pagada where id = :id");
+        $sentence = $db->prepare("delete from cuenta_pagada where id = :id and id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         Flight::json(array('id' => $id));
     }
@@ -148,13 +159,16 @@ class CuentaPagada
 
             try {
                 // Preparar la consulta una sola vez
-                $query = "INSERT INTO cuenta_pagada (id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) 
-                     VALUES (:id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)";
+                $query = "INSERT INTO cuenta_pagada (id, id_tenant, id_cuenta_por_cobrar, id_pago_recibido, valor_aplicado, fecha) 
+                     VALUES (:id, :id_tenant, :id_cuenta_por_cobrar, :id_pago_recibido, :valor_aplicado, :fecha)";
                 $sentence = $db->prepare($query);
 
                 // Insertar cada cuenta
                 foreach ($cuentas as $cuenta) {
                     try {
+                        $idCp = Uuid::generar();
+                        $sentence->bindValue(':id', $idCp);
+                        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                         $sentence->bindParam(':id_cuenta_por_cobrar', $cuenta['id_cuenta_por_cobrar']);
                         $sentence->bindParam(':id_pago_recibido', $id_pago_recibido);
                         $sentence->bindParam(':valor_aplicado', $cuenta['valor_aplicado']);
@@ -163,7 +177,7 @@ class CuentaPagada
                         $sentence->execute();
 
                         $resultados[] = [
-                            'id' => $db->lastInsertId(),
+                            'id' => $idCp,
                             'id_cuenta_por_cobrar' => $cuenta['id_cuenta_por_cobrar'],
                             'valor_aplicado' => $cuenta['valor_aplicado'],
                             'success' => true

@@ -43,7 +43,7 @@ class DocumentosPersonas
                 DATEDIFF(dp.fecha_vencimiento, CURDATE()) AS dias_para_vencer,
                 dp.observaciones,
                 dp.id_usuario_subio,
-                CONCAT(pu.primer_nombre, ' ', pu.primer_apellido) AS nombre_usuario_subio,
+                CONCAT_WS(' ', pu.primer_nombre, pu.primer_apellido) AS nombre_usuario_subio,
                 dp.activo,
                 dp.firma_digital_id,
                 dp.firma_digital_estado,
@@ -58,6 +58,7 @@ class DocumentosPersonas
             LEFT JOIN personas pu ON u.id_persona = pu.id
             WHERE dp.id_persona = :id_persona
               AND dp.activo = 1
+              AND dp.id_tenant = :id_tenant
         ";
 
         // Filtro por contrato
@@ -74,6 +75,7 @@ class DocumentosPersonas
 
         $sentence = $db->prepare($sql);
         $sentence->bindParam(':id_persona', $idPersona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
         if ($idContrato !== null) {
             $sentence->bindParam(':id_contrato', $idContrato);
@@ -131,7 +133,7 @@ class DocumentosPersonas
                 DATEDIFF(dp.fecha_vencimiento, CURDATE()) AS dias_para_vencer,
                 dp.observaciones,
                 dp.id_usuario_subio,
-                CONCAT(pu.primer_nombre, ' ', pu.primer_apellido) AS nombre_usuario_subio,
+                CONCAT_WS(' ', pu.primer_nombre, pu.primer_apellido) AS nombre_usuario_subio,
                 dp.activo
             FROM documentos_personas dp
             INNER JOIN personas p ON dp.id_persona = p.id
@@ -141,8 +143,10 @@ class DocumentosPersonas
             WHERE dp.id_persona = :id_persona
               AND dp.id_tipo_documento = :id_tipo_documento
               AND dp.activo = 1
+              AND dp.id_tenant = :id_tenant
             ORDER BY dp.fecha_subida DESC
         ");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->bindParam(':id_persona', $idPersona);
         $sentence->bindParam(':id_tipo_documento', $idTipoDocumento);
         $sentence->execute();
@@ -183,7 +187,7 @@ class DocumentosPersonas
                 DATEDIFF(dp.fecha_vencimiento, CURDATE()) AS dias_para_vencer,
                 dp.observaciones,
                 dp.id_usuario_subio,
-                CONCAT(pu.primer_nombre, ' ', pu.primer_apellido) AS nombre_usuario_subio,
+                CONCAT_WS(' ', pu.primer_nombre, pu.primer_apellido) AS nombre_usuario_subio,
                 dp.activo
             FROM documentos_personas dp
             INNER JOIN personas p ON dp.id_persona = p.id
@@ -197,9 +201,11 @@ class DocumentosPersonas
                   OR dp.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL :dias DAY)
               )
               AND dp.activo = 1
+              AND dp.id_tenant = :id_tenant
             ORDER BY dp.fecha_vencimiento ASC
         ");
         $sentence->bindParam(':dias', $dias);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -226,11 +232,13 @@ class DocumentosPersonas
                 SET fecha_vencimiento = :fecha_vencimiento,
                     observaciones = :observaciones
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha_vencimiento', $fecha_vencimiento);
             $sentence->bindParam(':observaciones', $observaciones);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id, 'mensaje' => 'Documento actualizado'));
@@ -247,8 +255,9 @@ class DocumentosPersonas
             $db = Flight::db();
             $id = Flight::request()->data['id'];
 
-            $sentence = $db->prepare("UPDATE documentos_personas SET activo = 0 WHERE id = :id");
+            $sentence = $db->prepare("UPDATE documentos_personas SET activo = 0 WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id, 'mensaje' => 'Documento eliminado'));
@@ -264,7 +273,14 @@ class DocumentosPersonas
             $db = Flight::db();
 
             $id_persona = Flight::request()->data['id_persona'];
-            $id_tipo_documento = Flight::request()->data['id_tipo_documento'];
+            $id_tipo_documento = isset(Flight::request()->data['id_tipo_documento'])
+                ? Flight::request()->data['id_tipo_documento']
+                : null;
+            // Opcional: código del tipo de documento. Si viene, tiene prioridad sobre
+            // el id (el código es estable entre tenants y migraciones). Se resuelve su UUID.
+            $codigo_tipo_documento = isset(Flight::request()->data['codigo_tipo_documento'])
+                ? trim(Flight::request()->data['codigo_tipo_documento'])
+                : null;
             $id_contrato = isset(Flight::request()->data['id_contrato'])
                 ? Flight::request()->data['id_contrato']
                 : null;
@@ -277,6 +293,48 @@ class DocumentosPersonas
             $id_usuario_subio = isset(Flight::request()->data['id_usuario_subio'])
                 ? Flight::request()->data['id_usuario_subio']
                 : null;
+
+            // Si se envió el código del tipo de documento, resolver su id (UUID) por
+            // código dentro del tenant. Prevalece sobre el id_tipo_documento recibido.
+            if ($codigo_tipo_documento !== null && $codigo_tipo_documento !== '') {
+                $stmtTipo = $db->prepare("
+                    SELECT id FROM tipos_documentos 
+                    WHERE codigo = :codigo AND id_tenant = :id_tenant 
+                    LIMIT 1
+                ");
+                $stmtTipo->bindParam(':codigo', $codigo_tipo_documento);
+                $stmtTipo->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                $stmtTipo->execute();
+                $tipoDocumento = $stmtTipo->fetch();
+
+                if (!$tipoDocumento) {
+                    Flight::json(array('error' => 'Tipo de documento no encontrado para el código: ' . $codigo_tipo_documento), 400);
+                    return;
+                }
+
+                $id_tipo_documento = $tipoDocumento['id'];
+            } else {
+                // Sin código: se valida que el id recibido exista en el tenant antes de
+                // insertar, para responder 400 en vez de fallar por la llave foránea.
+                if ($id_tipo_documento === null || $id_tipo_documento === '') {
+                    Flight::json(array('error' => 'Debe enviar id_tipo_documento o codigo_tipo_documento'), 400);
+                    return;
+                }
+
+                $stmtTipoId = $db->prepare("
+                    SELECT id FROM tipos_documentos 
+                    WHERE id = :id AND id_tenant = :id_tenant 
+                    LIMIT 1
+                ");
+                $stmtTipoId->bindParam(':id', $id_tipo_documento);
+                $stmtTipoId->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                $stmtTipoId->execute();
+
+                if (!$stmtTipoId->fetch()) {
+                    Flight::json(array('error' => 'Tipo de documento no encontrado para el id: ' . $id_tipo_documento), 400);
+                    return;
+                }
+            }
 
             // Validar que se subió archivo
             if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
@@ -320,13 +378,16 @@ class DocumentosPersonas
             // Insertar en BD
             $sentence = $db->prepare("
                 INSERT INTO documentos_personas 
-                (id_persona, id_tipo_documento, id_contrato, nombre_archivo, ruta_archivo, tamanio_bytes, 
+                (id, id_tenant, id_persona, id_tipo_documento, id_contrato, nombre_archivo, ruta_archivo, tamanio_bytes, 
                  fecha_vencimiento, observaciones, id_usuario_subio)
                 VALUES 
-                (:id_persona, :id_tipo_documento, :id_contrato, :nombre_archivo, :ruta_archivo, :tamanio_bytes,
+                (:id, :id_tenant, :id_persona, :id_tipo_documento, :id_contrato, :nombre_archivo, :ruta_archivo, :tamanio_bytes,
                  :fecha_vencimiento, :observaciones, :id_usuario_subio)
             ");
 
+            $id = Uuid::generar();
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_persona', $id_persona);
             $sentence->bindParam(':id_tipo_documento', $id_tipo_documento);
             $sentence->bindParam(':id_contrato', $id_contrato);
@@ -338,7 +399,6 @@ class DocumentosPersonas
             $sentence->bindParam(':id_usuario_subio', $id_usuario_subio);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
 
             Flight::json(array(
                 'id' => $id,
@@ -351,17 +411,61 @@ class DocumentosPersonas
         }
     }
 
+    // Emite un token efímero (5 min) para descargar un documento. La sesion ya
+    // fue validada por el hook central; aqui solo se verifica que el documento
+    // exista y pertenezca al tenant antes de firmar el token.
+    public static function generarTokenDescarga($id)
+    {
+        try {
+            $db = Flight::db();
+
+            $sentence = $db->prepare("
+                SELECT id
+                FROM documentos_personas
+                WHERE id = :id AND activo = 1
+                AND id_tenant = :id_tenant
+            ");
+            $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $sentence->execute();
+            $documento = $sentence->fetch();
+
+            if (!$documento) {
+                Flight::json(array('error' => 'Documento no encontrado'), 404);
+                return;
+            }
+
+            $token = JWTService::generarTokenDescarga($id, TenantContext::codigo());
+            Flight::json(array('token' => $token));
+        } catch (Exception $e) {
+            error_log("Error en DocumentosPersonas::generarTokenDescarga: " . $e->getMessage());
+            Flight::json(array('error' => $e->getMessage()), 500);
+        }
+    }
+
     public static function download($id)
     {
         try {
+            // Esta ruta se salta la autenticacion de sesion del hook central y
+            // se valida a si misma, aceptando dos formas:
+            //  - ?token= : token efímero de descarga (para <img src="">).
+            //  - sin ?token= : token de sesion por header (descarga blob).
+            if (isset($_GET['token'])) {
+                JWTService::requerirTokenDescarga($id, TenantContext::codigo());
+            } else {
+                JWTService::requerirTenant(TenantContext::codigo());
+            }
+
             $db = Flight::db();
 
             $sentence = $db->prepare("
                 SELECT nombre_archivo, ruta_archivo 
                 FROM documentos_personas 
                 WHERE id = :id AND activo = 1
+                AND id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $documento = $sentence->fetch();
 

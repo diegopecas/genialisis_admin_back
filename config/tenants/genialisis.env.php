@@ -1,12 +1,19 @@
 <?php
 
-define('DB_HOST', '92.205.2.161');
-define('DB_NAME', 'genialisis-admin-prod');
-define('DB_USERNAME', 'usr-genialisis-admin-prod');
-define('DB_PASSWORD', 'Ge,{_^G,v.%wY;Pl');
+define('DB_HOST', '132.148.181.209');
+define('DB_NAME', 'g_genialisis_prod');
+define('DB_USERNAME', 'usr_g_genialisis_prod');
+define('DB_PASSWORD', 'u^789,Cjf$h1?)&]');
+
 define('DB_CHARSET', 'utf8mb4');
 define('DB_TYPE', 'mysql');
 define('DB_DSN', DB_TYPE . ':host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET);
+
+// ========================================
+// ID NUMÉRICO DEL TENANT (= tenants.id en la BD maestra)
+// Lo lee TenantContext::id() para aislar las filas por id_tenant.
+// ========================================
+define('TENANT_ID', 3);
 
 // =============================================
 // CONFIGURACIÓN VAPID - PUSH NOTIFICATIONS

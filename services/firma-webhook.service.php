@@ -85,8 +85,9 @@ class FirmaWebhook
             $db = new PDO(DB_DSN, DB_USERNAME, DB_PASSWORD, $options);
             
             // Buscar documento por signing_request_id en la BD del tenant
-            $stmt = $db->prepare("SELECT id FROM documentos_personas WHERE firma_digital_id = :firma_id LIMIT 1");
+            $stmt = $db->prepare("SELECT id FROM documentos_personas WHERE firma_digital_id = :firma_id AND id_tenant = :id_tenant LIMIT 1");
             $stmt->bindParam(':firma_id', $signingRequestId);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $doc = $stmt->fetch();
             
@@ -145,9 +146,10 @@ class FirmaWebhook
             UPDATE documentos_personas 
             SET firma_digital_estado = 'firmado',
                 fecha_firmado = NOW()
-            WHERE id = :id
+            WHERE id = :id AND id_tenant = :id_tenant
         ");
         $stmt->bindParam(':id', $idDocumento);
+        $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $stmt->execute();
         
         // Si hay URL de descarga, descargar y reemplazar archivo
@@ -174,10 +176,11 @@ class FirmaWebhook
         $stmt = $db->prepare("
             UPDATE documentos_personas 
             SET firma_digital_estado = :estado
-            WHERE id = :id
+            WHERE id = :id AND id_tenant = :id_tenant
         ");
         $stmt->bindParam(':estado', $estado);
         $stmt->bindParam(':id', $idDocumento);
+        $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $stmt->execute();
     }
     
@@ -185,8 +188,9 @@ class FirmaWebhook
     {
         try {
             // Obtener info del documento
-            $stmt = $db->prepare("SELECT ruta_archivo, nombre_archivo FROM documentos_personas WHERE id = :id");
+            $stmt = $db->prepare("SELECT ruta_archivo, nombre_archivo FROM documentos_personas WHERE id = :id AND id_tenant = :id_tenant");
             $stmt->bindParam(':id', $idDocumento);
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $documento = $stmt->fetch();
             
@@ -239,11 +243,12 @@ class FirmaWebhook
                 $updateStmt = $db->prepare("
                     UPDATE documentos_personas 
                     SET ruta_archivo = :ruta, nombre_archivo = :nombre
-                    WHERE id = :id
+                    WHERE id = :id AND id_tenant = :id_tenant
                 ");
                 $updateStmt->bindParam(':ruta', $rutaRelativa);
                 $updateStmt->bindParam(':nombre', $nuevoNombre);
                 $updateStmt->bindParam(':id', $idDocumento);
+                $updateStmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $updateStmt->execute();
                 
                 error_log("BD actualizada con nuevo nombre: " . $nuevoNombre);

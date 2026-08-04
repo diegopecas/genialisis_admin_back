@@ -2,6 +2,7 @@
 Flight::route('GET /usuarios', [Usuarios::class, 'getAll']);
 Flight::route('POST /usuarios-auth', [Usuarios::class, 'getUsuarioByUsuarioAndClave']);
 Flight::route('POST /usuarios/cambiar-clave', [Usuarios::class, 'cambiarClave']);
+Flight::route('POST /usuarios/restablecer-clave', [Usuarios::class, 'restablecerClave']);
 Flight::route('GET /usuarios/persona/@id', [Usuarios::class, 'getByPersona']);
 
 Flight::route('POST /usuarios', [Usuarios::class, 'new']);

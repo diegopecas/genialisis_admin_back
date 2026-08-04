@@ -21,7 +21,9 @@ class Proveedores
         LEFT JOIN generos g ON p.id_genero = g.id
         INNER JOIN tipos_proveedor tp ON pr.id_tipo_proveedor = tp.id
         LEFT JOIN ciudades c ON p.id_ciudad = c.id
+        WHERE pr.id_tenant = :id_tenant
         ORDER BY pr.fecha_registro DESC");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -43,7 +45,9 @@ class Proveedores
         INNER JOIN personas p ON pr.id_persona = p.id
         INNER JOIN tipos_proveedor tp ON pr.id_tipo_proveedor = tp.id
         WHERE pr.activo = 1
+        AND pr.id_tenant = :id_tenant
         ORDER BY nombre_completo");
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -89,8 +93,10 @@ class Proveedores
         INNER JOIN tipos_proveedor tp ON pr.id_tipo_proveedor = tp.id
         LEFT JOIN ciudades c ON p.id_ciudad = c.id
         WHERE pr.id = :id
+        AND pr.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);
@@ -106,26 +112,31 @@ class Proveedores
 
             error_log("Datos recibidos para crear proveedor: id_persona=$id_persona, id_tipo_proveedor=$id_tipo_proveedor");
 
+            $id = Uuid::generar();
             $sentence = $db->prepare("INSERT INTO proveedores(
+                id,
+                id_tenant,
                 id_persona, 
                 id_tipo_proveedor,
                 activo,
                 fecha_registro
             ) VALUES (
+                :id,
+                :id_tenant,
                 :id_persona, 
                 :id_tipo_proveedor,
                 1,
                 NOW()
             )");
 
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_persona', $id_persona);
             $sentence->bindParam(':id_tipo_proveedor', $id_tipo_proveedor);
-            $sentence->execute();
+            $ok = $sentence->execute();
 
-            $id = $db->lastInsertId();
-
-            if ($id == 0) {
-                error_log("Error: El ID insertado es 0.");
+            if (!$ok) {
+                error_log("Error: no se pudo insertar el proveedor.");
                 Flight::json(array('error' => 'No se pudo crear el proveedor.'), 500);
                 return;
             }
@@ -150,11 +161,12 @@ class Proveedores
                                 id_persona = :id_persona, 
                                 id_tipo_proveedor = :id_tipo_proveedor,
                                 activo = :activo
-                                WHERE id = :id");
+                                WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id_persona', $id_persona);
         $sentence->bindParam(':id_tipo_proveedor', $id_tipo_proveedor);
         $sentence->bindParam(':activo', $activo);
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         self::getById($id);
@@ -164,8 +176,9 @@ class Proveedores
     {
         $db = Flight::db();
         $id = Flight::request()->data['id'];
-        $sentence = $db->prepare("DELETE FROM proveedores WHERE id = :id");
+        $sentence = $db->prepare("DELETE FROM proveedores WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
 
         Flight::json(array('id' => $id));
@@ -177,8 +190,9 @@ class Proveedores
         $id_persona = Flight::request()->data['id_persona'];
         error_log("Verificando duplicados para proveedor: id_persona=$id_persona");
 
-        $sentence = $db->prepare("SELECT COUNT(*) as total FROM proveedores WHERE id_persona = :id_persona");
+        $sentence = $db->prepare("SELECT COUNT(*) as total FROM proveedores WHERE id_persona = :id_persona AND id_tenant = :id_tenant");
         $sentence->bindParam(':id_persona', $id_persona);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetch();
 
@@ -197,9 +211,10 @@ class Proveedores
             FROM proveedores pr
             INNER JOIN personas p ON pr.id_persona = p.id
             INNER JOIN tipos_proveedor tp ON pr.id_tipo_proveedor = tp.id
-            WHERE pr.id_tipo_proveedor = :id_tipo AND pr.activo = 1
+            WHERE pr.id_tipo_proveedor = :id_tipo AND pr.activo = 1 AND pr.id_tenant = :id_tenant
             ORDER BY nombre_completo");
         $sentence->bindParam(':id_tipo', $id_tipo);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
         Flight::json($response);

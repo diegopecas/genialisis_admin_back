@@ -21,7 +21,6 @@ Flight::route('DELETE /cuentas-por-cobrar', [CuentasPorCobrar::class, 'delete'])
 Flight::route('POST /cuentas-por-cobrar/verificar-duplicados', [CuentasPorCobrar::class, 'verificarDuplicados']);
 Flight::route('POST /cuentas-por-cobrar/generar-desde-contrato', [CuentasPorCobrar::class, 'generarDesdeContrato']);
 
-Flight::route('POST /cuentas-por-cobrar/generar-desde-curso-extra', [CuentasPorCobrar::class, 'generarDesdeCursoExtra']);
 
 // Rutas para cuentas por cobrar con detalle
 Flight::route('GET /cuentas-por-cobrar/detalle', [CuentasPorCobrar::class, 'getAllConDetalle']);
@@ -47,6 +46,7 @@ Flight::route('PUT /pagos-recibidos/contabilizar-multiple', [PagosRecibidos::cla
 Flight::route('GET /pagos-recibidos/datos-registro-rapido', [PagosRecibidos::class, 'getDatosRegistroRapido']);
 Flight::route('POST /pagos-recibidos/analizar-comprobante', [PagosRecibidos::class, 'analizarComprobante']);
 Flight::route('POST /pagos-recibidos/registrar-masivo', [PagosRecibidos::class, 'registrarMasivo']);
+Flight::route('POST /pagos-recibidos/verificar-duplicado', [PagosRecibidos::class, 'verificarDuplicado']);
 Flight::route('GET /pagos-recibidos/@id', [PagosRecibidos::class, 'getById']);
 Flight::route('GET /pagos-recibidos/estudiante/@id', [PagosRecibidos::class, 'getByEstudiante']);
 Flight::route('GET /pagos-recibidos/comprobante/@id_pago_recibido', [PagosRecibidos::class, 'obtenerDatosComprobante']);
@@ -69,3 +69,9 @@ Flight::route('GET /tipos-pagos/@id', [TiposPagos::class, 'getById']);
 Flight::route('POST /tipos-pagos', [TiposPagos::class, 'new']);
 Flight::route('PUT /tipos-pagos', [TiposPagos::class, 'replace']);
 Flight::route('DELETE /tipos-pagos', [TiposPagos::class, 'delete']);
+
+// Historial de recordatorios de pago
+Flight::route('GET /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'getAll']);
+Flight::route('GET /historial-recordatorios-pago/estudiante/@id', [HistorialRecordatoriosPago::class, 'getByEstudiante']);
+Flight::route('POST /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'new']);
+Flight::route('PUT /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'replace']);

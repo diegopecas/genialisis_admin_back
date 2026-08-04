@@ -4,7 +4,8 @@ class TiposMediosPagoFinancieros {
     public static function getAll() {
         try {
             $db = Flight::db();
-            $sentence = $db->prepare("SELECT * FROM tipos_medios_pago_financieros ORDER BY id");
+            $sentence = $db->prepare("SELECT * FROM tipos_medios_pago_financieros WHERE id_tenant = :id_tenant ORDER BY id");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -17,8 +18,9 @@ class TiposMediosPagoFinancieros {
     public static function getById($id) {
         try {
             $db = Flight::db();
-            $sentence = $db->prepare("SELECT * FROM tipos_medios_pago_financieros WHERE id = :id");
+            $sentence = $db->prepare("SELECT * FROM tipos_medios_pago_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
@@ -33,16 +35,18 @@ class TiposMediosPagoFinancieros {
             $db = Flight::db();
             $data = Flight::request()->data;
 
+            $id = Uuid::generar();
             $sentence = $db->prepare("
-                INSERT INTO tipos_medios_pago_financieros (nombre, descripcion) 
-                VALUES (:nombre, :descripcion)
+                INSERT INTO tipos_medios_pago_financieros (id, id_tenant, nombre, descripcion) 
+                VALUES (:id, :id_tenant, :nombre, :descripcion)
             ");
 
+            $sentence->bindValue(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':nombre', $data['nombre']);
             $sentence->bindParam(':descripcion', $data['descripcion']);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
             
             Flight::json(array('id' => $id));
         } catch (Exception $e) {
@@ -59,12 +63,13 @@ class TiposMediosPagoFinancieros {
             $sentence = $db->prepare("
                 UPDATE tipos_medios_pago_financieros 
                 SET nombre = :nombre, descripcion = :descripcion
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $sentence->bindParam(':id', $data['id']);
             $sentence->bindParam(':nombre', $data['nombre']);
             $sentence->bindParam(':descripcion', $data['descripcion']);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
             self::getById($data['id']);
@@ -79,8 +84,9 @@ class TiposMediosPagoFinancieros {
             $db = Flight::db();
             $id = Flight::request()->data['id'];
 
-            $sentence = $db->prepare("DELETE FROM tipos_medios_pago_financieros WHERE id = :id");
+            $sentence = $db->prepare("DELETE FROM tipos_medios_pago_financieros WHERE id = :id AND id_tenant = :id_tenant");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(array('id' => $id));

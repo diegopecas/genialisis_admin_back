@@ -12,17 +12,19 @@ class Nominas {
                 SELECT 
                     n.*,
                     en.nombre as nombre_estado,
-                    CONCAT(pg.primer_nombre, ' ', pg.primer_apellido) as nombre_usuario_genera,
-                    CONCAT(pc.primer_nombre, ' ', pc.primer_apellido) as nombre_usuario_cierra
+                    CONCAT_WS(' ', pg.primer_nombre, pg.primer_apellido) as nombre_usuario_genera,
+                    CONCAT_WS(' ', pc.primer_nombre, pc.primer_apellido) as nombre_usuario_cierra
                 FROM nominas n
                 INNER JOIN estados_nomina en ON n.id_estado = en.id
                 INNER JOIN usuarios ug ON n.id_usuario_genera = ug.id
                 INNER JOIN personas pg ON ug.id_persona = pg.id
                 LEFT JOIN usuarios uc ON n.id_usuario_cierra = uc.id
                 LEFT JOIN personas pc ON uc.id_persona = pc.id
+                WHERE n.id_tenant = :id_tenant
                 ORDER BY n.fecha_inicio DESC
             ");
             
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -47,8 +49,8 @@ class Nominas {
                 SELECT 
                     n.*,
                     en.nombre as nombre_estado,
-                    CONCAT(pg.primer_nombre, ' ', pg.primer_apellido) as nombre_usuario_genera,
-                    CONCAT(pc.primer_nombre, ' ', pc.primer_apellido) as nombre_usuario_cierra
+                    CONCAT_WS(' ', pg.primer_nombre, pg.primer_apellido) as nombre_usuario_genera,
+                    CONCAT_WS(' ', pc.primer_nombre, pc.primer_apellido) as nombre_usuario_cierra
                 FROM nominas n
                 INNER JOIN estados_nomina en ON n.id_estado = en.id
                 INNER JOIN usuarios ug ON n.id_usuario_genera = ug.id
@@ -56,9 +58,10 @@ class Nominas {
                 LEFT JOIN usuarios uc ON n.id_usuario_cierra = uc.id
                 LEFT JOIN personas pc ON uc.id_persona = pc.id
                 WHERE n.id = :id
+                AND n.id_tenant = :id_tenant
             ");
             
-            $stmt->execute(['id' => $id]);
+            $stmt->execute(['id' => $id, 'id_tenant' => TenantContext::id()]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             Flight::json($result, 200);
@@ -92,10 +95,12 @@ class Nominas {
                 FROM nominas n
                 INNER JOIN estados_nomina en ON n.id_estado = en.id
                 WHERE n.id_estado IN (1, 2)
+                AND n.id_tenant = :id_tenant
                 ORDER BY n.fecha_inicio DESC
                 LIMIT 50
             ");
             
+            $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -126,6 +131,8 @@ class Nominas {
             
             $stmt = $db->prepare("
                 INSERT INTO nominas (
+                    id,
+                    id_tenant,
                     periodo,
                     fecha_inicio,
                     fecha_fin,
@@ -134,6 +141,8 @@ class Nominas {
                     observaciones,
                     fecha_generacion
                 ) VALUES (
+                    :id,
+                    :id_tenant,
                     :periodo,
                     :fecha_inicio,
                     :fecha_fin,
@@ -144,7 +153,10 @@ class Nominas {
                 )
             ");
             
+            $idNomina = Uuid::generar();
             $stmt->execute([
+                'id' => $idNomina,
+                'id_tenant' => TenantContext::id(),
                 'periodo' => $data['periodo'],
                 'fecha_inicio' => $data['fecha_inicio'],
                 'fecha_fin' => $data['fecha_fin'],
@@ -156,7 +168,7 @@ class Nominas {
             Flight::json([
                 'success' => true,
                 'message' => 'Nómina creada correctamente',
-                'id' => $db->lastInsertId()
+                'id' => $idNomina
             ], 200);
             
         } catch (Exception $e) {
@@ -190,10 +202,12 @@ class Nominas {
                     id_estado = :id_estado,
                     observaciones = :observaciones
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
             
             $stmt->execute([
                 'id' => $data['id'],
+                'id_tenant' => TenantContext::id(),
                 'periodo' => $data['periodo'],
                 'fecha_inicio' => $data['fecha_inicio'],
                 'fecha_fin' => $data['fecha_fin'],
@@ -235,11 +249,13 @@ class Nominas {
                     fecha_cierre = NOW(),
                     id_usuario_cierra = :id_usuario_cierra
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
             
             $stmt->execute([
                 'id' => $data['id'],
-                'id_usuario_cierra' => $data['id_usuario_cierra']
+                'id_usuario_cierra' => $data['id_usuario_cierra'],
+                'id_tenant' => TenantContext::id()
             ]);
             
             Flight::json([
@@ -275,9 +291,10 @@ class Nominas {
                     id_estado = 3,
                     fecha_pago = NOW()
                 WHERE id = :id
+                AND id_tenant = :id_tenant
             ");
             
-            $stmt->execute(['id' => $data['id']]);
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,
@@ -306,8 +323,8 @@ class Nominas {
             
             $db = Flight::db();
             
-            $stmt = $db->prepare("DELETE FROM nominas WHERE id = :id");
-            $stmt->execute(['id' => $data['id']]);
+            $stmt = $db->prepare("DELETE FROM nominas WHERE id = :id AND id_tenant = :id_tenant");
+            $stmt->execute(['id' => $data['id'], 'id_tenant' => TenantContext::id()]);
             
             Flight::json([
                 'success' => true,

@@ -40,8 +40,10 @@ class ContratosColaborador
                 INNER JOIN cargos car ON cc.id_cargo = car.id
                 INNER JOIN tipos_contrato tc ON cc.id_tipo_contrato = tc.id
                 WHERE cc.activo = 1
+                  AND cc.id_tenant = :id_tenant
                 ORDER BY cc.anio DESC, cc.numero DESC
             ");
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -75,9 +77,11 @@ class ContratosColaborador
                 INNER JOIN cargos car ON cc.id_cargo = car.id
                 INNER JOIN tipos_contrato tc ON cc.id_tipo_contrato = tc.id
                 WHERE cc.id = :id
+                  AND cc.id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
 
@@ -113,9 +117,11 @@ class ContratosColaborador
                 INNER JOIN tipos_contrato tc ON cc.id_tipo_contrato = tc.id
                 WHERE cc.id_colaborador = :id_colaborador
                   AND cc.activo = 1
+                  AND cc.id_tenant = :id_tenant
                 ORDER BY cc.anio DESC, cc.numero DESC
             ");
             $sentence->bindParam(':id_colaborador', $idColaborador);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultados = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($resultados);
@@ -156,9 +162,11 @@ class ContratosColaborador
                 INNER JOIN cargos car ON cc.id_cargo = car.id
                 INNER JOIN tipos_contrato tc ON cc.id_tipo_contrato = tc.id
                 WHERE cc.id = :id
+                  AND cc.id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentenceContrato->bindParam(':id', $id);
+            $sentenceContrato->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceContrato->execute();
             $contrato = $sentenceContrato->fetch(PDO::FETCH_ASSOC);
 
@@ -178,7 +186,9 @@ class ContratosColaborador
                     'representante_legal_nombre', 'representante_legal_cedula',
                     'representante_legal_cedula_lugar', 'representante_legal_email'
                 )
+                AND id_tenant = :id_tenant
             ");
+            $sentenceConfig->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceConfig->execute();
             $filasConfig = $sentenceConfig->fetchAll(PDO::FETCH_ASSOC);
 
@@ -230,10 +240,12 @@ class ContratosColaborador
                 WHERE id_cargo = :id_cargo
                   AND id_tipo_contrato = :id_tipo_contrato
                   AND activo = 1
+                  AND id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentencePlantilla->bindParam(':id_cargo', $idCargo);
             $sentencePlantilla->bindParam(':id_tipo_contrato', $idTipoContrato);
+            $sentencePlantilla->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentencePlantilla->execute();
             $filaPlantilla = $sentencePlantilla->fetch(PDO::FETCH_ASSOC);
 
@@ -250,20 +262,22 @@ class ContratosColaborador
                 SELECT COALESCE(MAX(numero), 0) + 1 AS siguiente
                 FROM contratos_colaborador
                 WHERE anio = :anio
+                  AND id_tenant = :id_tenant
                 FOR UPDATE
             ");
             $sentenceNumero->bindParam(':anio', $anio);
+            $sentenceNumero->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceNumero->execute();
             $numero = (int) $sentenceNumero->fetch(PDO::FETCH_ASSOC)['siguiente'];
 
             $sentence = $db->prepare("
                 INSERT INTO contratos_colaborador (
-                    numero, anio, id_colaborador, id_cargo, id_tipo_contrato, id_plantilla,
+                    id, id_tenant, numero, anio, id_colaborador, id_cargo, id_tipo_contrato, id_plantilla,
                     salario_mensual, periodo_pago, fecha_inicio, fecha_fin, periodo_prueba,
                     jornada_horas, lugar_desempeno, lugar_firma, fecha_firma,
                     representante_firma_digital, observaciones, id_usuario_genera
                 ) VALUES (
-                    :numero, :anio, :id_colaborador, :id_cargo, :id_tipo_contrato, :id_plantilla,
+                    :id, :id_tenant, :numero, :anio, :id_colaborador, :id_cargo, :id_tipo_contrato, :id_plantilla,
                     :salario_mensual, :periodo_pago, :fecha_inicio, :fecha_fin, :periodo_prueba,
                     :jornada_horas, :lugar_desempeno, :lugar_firma, :fecha_firma,
                     :representante_firma_digital, :observaciones, :id_usuario_genera
@@ -285,6 +299,9 @@ class ContratosColaborador
                 ? ($userData->id ?? null)
                 : ($userData['id'] ?? null);
 
+            $idContrato = Uuid::generar();
+            $sentence->bindValue(':id', $idContrato);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':numero', $numero);
             $sentence->bindParam(':anio', $anio);
             $sentence->bindParam(':id_colaborador', $idColaborador);
@@ -305,7 +322,7 @@ class ContratosColaborador
             $sentence->bindParam(':id_usuario_genera', $idUsuarioGenera);
 
             $sentence->execute();
-            $id = $db->lastInsertId();
+            $id = $idContrato;
 
             // Sincronizar datos del colaborador con los del contrato
             // (cargo, tipo de contrato y salario). No se toca fecha_ingreso.
@@ -315,11 +332,13 @@ class ContratosColaborador
                     id_tipo_contrato = :id_tipo_contrato,
                     salario_mensual = :salario_mensual
                 WHERE id = :id_colaborador
+                  AND id_tenant = :id_tenant
             ");
             $sentenceColab->bindParam(':id_cargo', $idCargo);
             $sentenceColab->bindParam(':id_tipo_contrato', $idTipoContrato);
             $sentenceColab->bindParam(':salario_mensual', $salarioMensual);
             $sentenceColab->bindParam(':id_colaborador', $idColaborador);
+            $sentenceColab->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceColab->execute();
 
             $db->commit();
@@ -365,10 +384,12 @@ class ContratosColaborador
                 WHERE id_cargo = :id_cargo
                   AND id_tipo_contrato = :id_tipo_contrato
                   AND activo = 1
+                  AND id_tenant = :id_tenant
                 LIMIT 1
             ");
             $sentencePlantilla->bindParam(':id_cargo', $idCargo);
             $sentencePlantilla->bindParam(':id_tipo_contrato', $idTipoContrato);
+            $sentencePlantilla->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentencePlantilla->execute();
             $plantilla = $sentencePlantilla->fetch(PDO::FETCH_ASSOC);
 
@@ -395,7 +416,7 @@ class ContratosColaborador
                     fecha_firma = :fecha_firma,
                     representante_firma_digital = :representante_firma_digital,
                     observaciones = :observaciones
-                WHERE id = :id
+                WHERE id = :id AND id_tenant = :id_tenant
             ");
 
             $salarioMensual            = Flight::request()->data['salario_mensual'] ?? null;
@@ -425,6 +446,7 @@ class ContratosColaborador
             $sentence->bindParam(':fecha_firma', $fechaFirma);
             $sentence->bindParam(':representante_firma_digital', $representanteFirmaDigital);
             $sentence->bindParam(':observaciones', $observaciones);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             $sentence->execute();
 
@@ -438,9 +460,11 @@ class ContratosColaborador
                     c.id_tipo_contrato = cc.id_tipo_contrato,
                     c.salario_mensual = :salario_mensual
                 WHERE c.id = cc.id_colaborador
+                  AND cc.id_tenant = :id_tenant
             ");
             $sentenceColab->bindParam(':id_contrato', $id);
             $sentenceColab->bindParam(':salario_mensual', $salarioMensual);
+            $sentenceColab->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceColab->execute();
 
             $db->commit();
@@ -479,9 +503,11 @@ class ContratosColaborador
                 SET firmado = 1,
                     ruta_documento_firmado = :ruta
                 WHERE id = :id
+                  AND id_tenant = :id_tenant
             ");
             $sentence->bindParam(':ruta', $rutaDocumento);
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(['id' => $id, 'message' => 'Contrato marcado como firmado']);
@@ -514,8 +540,10 @@ class ContratosColaborador
                 SET firmado = 0,
                     ruta_documento_firmado = NULL
                 WHERE id = :id
+                  AND id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(['id' => $id, 'message' => 'Contrato desmarcado como firmado']);
@@ -547,8 +575,10 @@ class ContratosColaborador
                 UPDATE contratos_colaborador
                 SET activo = 0
                 WHERE id = :id
+                  AND id_tenant = :id_tenant
             ");
             $sentence->bindParam(':id', $id);
+            $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
 
             Flight::json(['id' => $id, 'message' => 'Contrato anulado correctamente']);
