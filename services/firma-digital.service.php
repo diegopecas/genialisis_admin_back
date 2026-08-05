@@ -117,6 +117,21 @@ class FirmaDigital
                 }
             }
 
+            // El representante legal de la institucion siempre firma. Si el front
+            // no lo mando en la lista, se agrega aqui para no depender de el.
+            if ($representanteEmail) {
+                $yaEsta = false;
+                foreach ($emailsFirmantes as $emailExistente) {
+                    if (strcasecmp($emailExistente, $representanteEmail) === 0) {
+                        $yaEsta = true;
+                        break;
+                    }
+                }
+                if (!$yaEsta) {
+                    $emailsFirmantes[] = $representanteEmail;
+                }
+            }
+
             // Validar emails
             foreach ($emailsFirmantes as $email) {
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {

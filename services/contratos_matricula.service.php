@@ -487,7 +487,8 @@ class ContratosMatricula
                           p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
                    p.numero_identificacion, ti.nombre AS tipo_identificacion,
                    p.direccion, c.nombre AS ciudad,
-                   ta.nombre AS tipo_acudiente
+                   ta.nombre AS tipo_acudiente,
+                   a.es_responsable_pago
             FROM contratos_matricula_acudientes cma
             INNER JOIN acudientes a ON cma.id_acudiente = a.id
             INNER JOIN personas p ON a.id_persona = p.id
@@ -507,7 +508,8 @@ class ContratosMatricula
             FROM configuracion_global
             WHERE clave IN ('representante_legal_nombre', 'representante_legal_cedula', 
                            'representante_legal_cedula_lugar', 'institucion_nombre', 'institucion_nit',
-                           'institucion_telefono', 'institucion_email', 'institucion_web', 'institucion_direccion')
+                           'institucion_telefono', 'institucion_email', 'institucion_web', 'institucion_direccion',
+                           'institucion_eslogan', 'institucion_razon_social')
             AND id_tenant = :id_tenant
         ");
         $sentenceConfig->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -519,11 +521,27 @@ class ContratosMatricula
             $configuracion[$row['clave']] = $row['valor_texto'];
         }
 
+        // Campos parametrizables diligenciados para este contrato. Viajan como
+        // { llave => valor } para que el generador los resuelva como marcadores.
+        $sentenceCampos = $db->prepare("
+            SELECT llave, valor FROM contratos_campos
+            WHERE id_contrato = :id_contrato AND id_tenant = :id_tenant
+        ");
+        $sentenceCampos->bindParam(':id_contrato', $idContrato);
+        $sentenceCampos->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentenceCampos->execute();
+
+        $campos = [];
+        foreach ($sentenceCampos->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $campos[$fila['llave']] = $fila['valor'];
+        }
+
         Flight::json(array(
             'contrato' => $contrato,
             'estudiante' => $estudiante,
             'acudientes' => $acudientes,
-            'configuracion' => $configuracion
+            'configuracion' => $configuracion,
+            'campos' => $campos
         ));
     }
 
