@@ -64,9 +64,12 @@ class PdfPlaceholderExtractor
                     error_log("  📍 SIGN_{$globalIndex}: recipient={$recipientIndex}, página={$page}, x={$x}%, y={$y}%, w={$w}%, h={$h}%");
                     
                     // Determinar el temp_id basado en el recipientIndex
-                    // recipientIndex 99 es especial para representante legal
+                    // 99 es el representante legal y 98 el director general:
+                    // los dos firman por la organizacion, no por el cliente.
                     if ($recipientIndex == 99) {
                         $tempId = 'temp_representante';
+                    } else if ($recipientIndex == 98) {
+                        $tempId = 'temp_director';
                     } else {
                         // Para representantes: mapear al índice correcto
                         // Si recipientIndex > numFirmantes, usar módulo para ciclar

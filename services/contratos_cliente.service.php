@@ -509,7 +509,10 @@ class ContratosCliente
             WHERE clave IN ('representante_legal_nombre', 'representante_legal_cedula', 
                            'representante_legal_cedula_lugar', 'institucion_nombre', 'institucion_nit',
                            'institucion_telefono', 'institucion_email', 'institucion_web', 'institucion_direccion',
-                           'institucion_eslogan', 'institucion_razon_social')
+                           'institucion_eslogan', 'institucion_razon_social',
+                           'representante_legal_cargo', 'director_general_nombre',
+                           'director_general_cedula', 'director_general_cedula_lugar',
+                           'director_general_cargo', 'director_general_email')
             AND id_tenant = :id_tenant
         ");
         $sentenceConfig->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);

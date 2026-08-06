@@ -105,7 +105,9 @@ class FirmaDigital
             // envíe 'firmantes_externos', para casar con el placeholder R99.
             $representanteEmail = null;
             $representanteNombre = null;
-            $sentenceRep = $db->prepare("SELECT clave, valor_texto FROM configuracion_global WHERE clave IN ('representante_legal_email', 'representante_legal_nombre') AND id_tenant = :id_tenant");
+            $directorEmail = null;
+            $directorNombre = null;
+            $sentenceRep = $db->prepare("SELECT clave, valor_texto FROM configuracion_global WHERE clave IN ('representante_legal_email', 'representante_legal_nombre', 'director_general_email', 'director_general_nombre') AND id_tenant = :id_tenant");
             $sentenceRep->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceRep->execute();
             foreach ($sentenceRep->fetchAll(PDO::FETCH_ASSOC) as $filaRep) {
@@ -114,6 +116,12 @@ class FirmaDigital
                 }
                 if ($filaRep['clave'] === 'representante_legal_nombre' && !empty($filaRep['valor_texto'])) {
                     $representanteNombre = trim($filaRep['valor_texto']);
+                }
+                if ($filaRep['clave'] === 'director_general_email' && !empty($filaRep['valor_texto'])) {
+                    $directorEmail = trim($filaRep['valor_texto']);
+                }
+                if ($filaRep['clave'] === 'director_general_nombre' && !empty($filaRep['valor_texto'])) {
+                    $directorNombre = trim($filaRep['valor_texto']);
                 }
             }
 
@@ -129,6 +137,20 @@ class FirmaDigital
                 }
                 if (!$yaEsta) {
                     $emailsFirmantes[] = $representanteEmail;
+                }
+            }
+
+            // El director general firma junto al representante legal.
+            if ($directorEmail) {
+                $yaEstaDir = false;
+                foreach ($emailsFirmantes as $emailExistente) {
+                    if (strcasecmp($emailExistente, $directorEmail) === 0) {
+                        $yaEstaDir = true;
+                        break;
+                    }
+                }
+                if (!$yaEstaDir) {
+                    $emailsFirmantes[] = $directorEmail;
                 }
             }
 
@@ -196,6 +218,11 @@ class FirmaDigital
             $recipientIndex = 1;
             foreach ($emailsFirmantes as $email) {
                 $esRepresentante = false;
+                $esDirector = false;
+
+                if ($directorEmail && strcasecmp($email, $directorEmail) === 0) {
+                    $esDirector = true;
+                }
 
                 // Respaldo: si el correo coincide con el del representante legal
                 // configurado, se marca como representante aunque no venga en
@@ -223,6 +250,10 @@ class FirmaDigital
                     $persona = $personasMap[$email];
                     $firstName = trim($persona['primer_nombre'] . ' ' . $persona['segundo_nombre']);
                     $lastName = trim($persona['primer_apellido'] . ' ' . $persona['segundo_apellido']);
+                } else if ($esDirector && $directorNombre) {
+                    $partes = preg_split('/\s+/', trim($directorNombre));
+                    $firstName = $partes[0] ?? $directorNombre;
+                    $lastName = count($partes) > 1 ? implode(' ', array_slice($partes, 1)) : 'Firmante';
                 } else if ($esRepresentante && $representanteNombre) {
                     // Representante identificado por configuración: partir el nombre
                     // completo en nombres y apellidos de forma aproximada.
@@ -246,7 +277,9 @@ class FirmaDigital
 
                 // El representante usa el id temp_representante para casar con el
                 // placeholder R99 que genera el PDF (PdfPlaceholderExtractor).
-                $recipientId = $esRepresentante ? 'temp_representante' : 'temp_' . $recipientIndex;
+                $recipientId = $esRepresentante
+                    ? 'temp_representante'
+                    : ($esDirector ? 'temp_director' : 'temp_' . $recipientIndex);
 
                 $recipients[] = [
                     'id' => $recipientId,
@@ -255,7 +288,7 @@ class FirmaDigital
                     'last_name' => $lastName
                 ];
 
-                if (!$esRepresentante) {
+                if (!$esRepresentante && !$esDirector) {
                     $recipientIndex++;
                 }
             }
