@@ -246,10 +246,6 @@ class FirmaDigital
                     if ($lastName === '') {
                         $lastName = 'Firmante';
                     }
-                } else if (isset($personasMap[$email])) {
-                    $persona = $personasMap[$email];
-                    $firstName = trim($persona['primer_nombre'] . ' ' . $persona['segundo_nombre']);
-                    $lastName = trim($persona['primer_apellido'] . ' ' . $persona['segundo_apellido']);
                 } else if ($esDirector && $directorNombre) {
                     $partes = preg_split('/\s+/', trim($directorNombre));
                     $firstName = $partes[0] ?? $directorNombre;
@@ -268,6 +264,13 @@ class FirmaDigital
                         $firstName = $partes[0] ?? $representanteNombre;
                         $lastName = $partes[1] ?? 'Representante';
                     }
+                } else if (isset($personasMap[$email])) {
+                    // Se evalua despues del representante y del director: el
+                    // correo de la organizacion suele estar tambien asociado a
+                    // una persona del sistema, y ese nombre no es el que firma.
+                    $persona = $personasMap[$email];
+                    $firstName = trim($persona['primer_nombre'] . ' ' . $persona['segundo_nombre']);
+                    $lastName = trim($persona['primer_apellido'] . ' ' . $persona['segundo_apellido']);
                 } else {
                     $emailParts = explode('@', $email);
                     $emailName = $emailParts[0];
