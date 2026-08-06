@@ -432,9 +432,9 @@ class CuentasPorCobrar
                         COALESCE(p.segundo_apellido, '')
                     ) AS nombre_persona,
                     p.numero_identificacion,
-                    e.id AS id_estudiante,
-                    eg.id_grupo,
-                    g.nombre AS nombre_grupo,
+                    e.id AS id_cliente,
+                    eg.id_plan,
+                    g.nombre AS nombre_plan,
                     CONCAT(
                         COALESCE(pu.primer_nombre, ''), ' ',
                         COALESCE(pu.segundo_nombre, ''), ' ',
@@ -454,11 +454,11 @@ class CuentasPorCobrar
                 LEFT JOIN
                     personas p ON p.id = c.id_persona
                 LEFT JOIN
-                    estudiantes e ON e.id_persona = p.id
+                    clientes e ON e.id_persona = p.id
                 LEFT JOIN
-                    estudiantes_x_grupos eg ON eg.id_estudiante = e.id AND eg.activo = 1
+                    clientes_x_planes eg ON eg.id_cliente = e.id AND eg.activo = 1
                 LEFT JOIN
-                    grupos g ON g.id = eg.id_grupo
+                    planes g ON g.id = eg.id_plan
                 LEFT JOIN
                     usuarios u ON u.id = c.id_usuario
                 LEFT JOIN
@@ -472,7 +472,7 @@ class CuentasPorCobrar
                     c.id_usuario_anulacion,
                     ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
                     p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
-                    p.numero_identificacion, e.id, eg.id_grupo, g.nombre,
+                    p.numero_identificacion, e.id, eg.id_plan, g.nombre,
                     pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido
                 ORDER BY 
                     c.fecha DESC, p.primer_apellido, p.primer_nombre
@@ -577,7 +577,7 @@ class CuentasPorCobrar
             $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
 
-            $reporteEstudiantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $reporteClientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
             $reporteValores = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
@@ -585,24 +585,24 @@ class CuentasPorCobrar
             $stmt->nextRowset();
             $reportePagosDiarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
-            $estudianteClasificacion = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $clienteClasificacion = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
             $reporteProductos = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
-            $estudianteProducto = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $clienteProducto = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
             $reporteAnulados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json([
                 'anio' => $anio,
                 'fecha_generacion' => date('Y-m-d H:i:s'),
-                'reporte_estudiantes' => $reporteEstudiantes,
+                'reporte_clientes' => $reporteClientes,
                 'reporte_valores' => $reporteValores,
                 'reporte_clasificaciones' => $reporteClasificaciones,
                 'reporte_pagos_diarios' => $reportePagosDiarios,
-                'estudiante_clasificacion' => $estudianteClasificacion,
+                'cliente_clasificacion' => $clienteClasificacion,
                 'reporte_productos' => $reporteProductos,
-                'estudiante_producto' => $estudianteProducto,
+                'cliente_producto' => $clienteProducto,
                 'reporte_anulados' => $reporteAnulados
             ]);
         } catch (Exception $e) {
@@ -656,9 +656,9 @@ class CuentasPorCobrar
                     COALESCE(p.segundo_apellido, '')
                 ) AS nombre_persona,
                 p.numero_identificacion,
-                e.id AS id_estudiante,
-                eg.id_grupo,
-                g.nombre AS nombre_grupo,
+                e.id AS id_cliente,
+                eg.id_plan,
+                g.nombre AS nombre_plan,
                 CONCAT(
                     COALESCE(pu.primer_nombre, ''), ' ',
                     COALESCE(pu.segundo_nombre, ''), ' ',
@@ -678,11 +678,11 @@ class CuentasPorCobrar
             LEFT JOIN
                 personas p ON p.id = c.id_persona
             LEFT JOIN
-                estudiantes e ON e.id_persona = p.id
+                clientes e ON e.id_persona = p.id
             LEFT JOIN
-                estudiantes_x_grupos eg ON eg.id_estudiante = e.id AND eg.activo = 1
+                clientes_x_planes eg ON eg.id_cliente = e.id AND eg.activo = 1
             LEFT JOIN
-                grupos g ON g.id = eg.id_grupo
+                planes g ON g.id = eg.id_plan
             LEFT JOIN
                 usuarios u ON u.id = c.id_usuario
             LEFT JOIN
@@ -697,7 +697,7 @@ class CuentasPorCobrar
                 c.id_usuario_anulacion,
                 ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
-                p.numero_identificacion, e.id, eg.id_grupo, g.nombre,
+                p.numero_identificacion, e.id, eg.id_plan, g.nombre,
                 pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido
             ORDER BY 
                 c.fecha DESC, p.primer_apellido, p.primer_nombre
@@ -858,7 +858,7 @@ class CuentasPorCobrar
     }
 
     /**
-     * Genera cuentas por cobrar a partir de los valores de un contrato de matrícula.
+     * Genera cuentas por cobrar a partir de los valores de un contrato de implementación.
      */
     public static function generarDesdeContrato()
     {
@@ -871,9 +871,9 @@ class CuentasPorCobrar
             $id_usuario = Flight::request()->data['id_usuario'];
 
             $stmtContrato = $db->prepare("
-                SELECT cm.id, cm.id_estudiante, cm.anio, e.id_persona
-                FROM contratos_matricula cm
-                INNER JOIN estudiantes e ON cm.id_estudiante = e.id
+                SELECT cm.id, cm.id_cliente, cm.anio, e.id_persona
+                FROM contratos_cliente cm
+                INNER JOIN clientes e ON cm.id_cliente = e.id
                 WHERE cm.id = :id_contrato AND cm.id_tenant = :id_tenant
             ");
             $stmtContrato->bindParam(':id_contrato', $id_contrato);
@@ -892,9 +892,9 @@ class CuentasPorCobrar
                 SELECT cmv.id, cmv.id_producto_servicio, cmv.fecha, cmv.valor,
                        ps.nombre AS nombre_producto,
                        ps.id_periodicidad_cobro
-                FROM contratos_matricula_valores cmv
+                FROM contratos_cliente_valores cmv
                 INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
-                WHERE cmv.id_contrato_matricula = :id_contrato AND cmv.id_tenant = :id_tenant
+                WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
                 ORDER BY cmv.fecha, ps.id_periodicidad_cobro
             ");
             $stmtValores->bindParam(':id_contrato', $id_contrato);
@@ -954,8 +954,8 @@ class CuentasPorCobrar
             ");
 
             $cuentasCreadas = 0;
-            $totalMatricula = 0;
-            $totalPension = 0;
+            $totalImplementacion = 0;
+            $totalSuscripcion = 0;
 
             $nombresMeses = [
                 1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
@@ -968,7 +968,7 @@ class CuentasPorCobrar
                 $anioFecha = date('Y', strtotime($valor['fecha']));
                 $nombreMes = $nombresMeses[$mesNum];
 
-                $tipoConcepto = ($valor['id_periodicidad_cobro'] == 1) ? 'Matrícula' : 'Pensión';
+                $tipoConcepto = ($valor['id_periodicidad_cobro'] == 1) ? 'Implementación' : 'Suscripción';
                 $detalle = "Generado automáticamente - Contrato #{$id_contrato} - {$tipoConcepto} {$nombreMes} {$anioFecha}";
 
                 $idCxc = Uuid::generar();
@@ -985,9 +985,9 @@ class CuentasPorCobrar
                 $cuentasCreadas++;
 
                 if ($valor['id_periodicidad_cobro'] == 1) {
-                    $totalMatricula += $valor['valor'];
+                    $totalImplementacion += $valor['valor'];
                 } else {
-                    $totalPension += $valor['valor'];
+                    $totalSuscripcion += $valor['valor'];
                 }
             }
 
@@ -996,9 +996,9 @@ class CuentasPorCobrar
             Flight::json(array(
                 'success' => true,
                 'cuentas_creadas' => $cuentasCreadas,
-                'total_matricula' => $totalMatricula,
-                'total_pension' => $totalPension,
-                'total_general' => $totalMatricula + $totalPension
+                'total_implementacion' => $totalImplementacion,
+                'total_suscripcion' => $totalSuscripcion,
+                'total_general' => $totalImplementacion + $totalSuscripcion
             ));
         } catch (Exception $e) {
             if ($db->inTransaction()) {
@@ -1010,9 +1010,9 @@ class CuentasPorCobrar
     }
 
     /**
-     * Reporte de cartera de estudiantes con acudientes responsables de pago.
+     * Reporte de cartera de clientes con representantes responsables de pago.
      */
-    public static function getReporteCarteraEstudiantes($anio, $idEstudiante = null)
+    public static function getReporteCarteraClientes($anio, $idCliente = null)
     {
         $userData = JWTService::requerirAutenticacion();
 
@@ -1027,42 +1027,42 @@ class CuentasPorCobrar
                 return;
             }
 
-            $idEst = ($idEstudiante !== null && $idEstudiante !== 'null') ? $idEstudiante : null;
+            $idEst = ($idCliente !== null && $idCliente !== 'null') ? $idCliente : null;
 
-            $stmt = $db->prepare("CALL sp_reporte_cartera_estudiantes(:anio, :id_estudiante, :id_tenant)");
+            $stmt = $db->prepare("CALL sp_reporte_cartera_clientes(:anio, :id_cliente, :id_tenant)");
             $stmt->bindParam(':anio', $anio, PDO::PARAM_INT);
-            $stmt->bindParam(':id_estudiante', $idEst, PDO::PARAM_STR);
+            $stmt->bindParam(':id_cliente', $idEst, PDO::PARAM_STR);
             $stmt->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $stmt->execute();
 
-            $reporteEstudiantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $reporteClientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
 
             $reporteValores = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt->nextRowset();
 
-            $acudientesPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $representantesPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json([
                 'anio' => $anio,
                 'fecha_generacion' => date('Y-m-d H:i:s'),
-                'reporte_estudiantes' => $reporteEstudiantes,
+                'reporte_clientes' => $reporteClientes,
                 'reporte_valores' => $reporteValores,
-                'acudientes_pago' => $acudientesPago
+                'representantes_pago' => $representantesPago
             ]);
         } catch (Exception $e) {
-            error_log('Error en getReporteCarteraEstudiantes: ' . $e->getMessage());
+            error_log('Error en getReporteCarteraClientes: ' . $e->getMessage());
             Flight::json([
                 'error' => true,
-                'message' => 'Error al generar el reporte de cartera de estudiantes',
+                'message' => 'Error al generar el reporte de cartera de clientes',
                 'detalles' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Reporte desagregado de cobros por año. Incluye estudiantes y colaboradores.
-     * Retorna cada registro individual con tipo_persona y grupo_o_cargo derivados.
+     * Reporte desagregado de cobros por año. Incluye clientes y colaboradores.
+     * Retorna cada registro individual con tipo_persona y plan_o_cargo derivados.
      */
     public static function getReporteCobrosAnual($anio)
     {
@@ -1112,16 +1112,16 @@ class CuentasPorCobrar
                     )) AS nombre_persona,
                     p.numero_identificacion,
                     CASE 
-                        WHEN e.id IS NOT NULL THEN 'Estudiante'
+                        WHEN e.id IS NOT NULL THEN 'Cliente'
                         WHEN col.id IS NOT NULL THEN 'Colaborador'
                         ELSE 'Otro'
                     END AS tipo_persona,
                     CASE 
-                        WHEN e.id IS NOT NULL THEN COALESCE(g.nombre, 'Sin grupo')
+                        WHEN e.id IS NOT NULL THEN COALESCE(g.nombre, 'Sin plan')
                         WHEN col.id IS NOT NULL THEN COALESCE(ca.nombre, 'Sin cargo')
                         ELSE 'Sin asignar'
-                    END AS grupo_o_cargo,
-                    e.id AS id_estudiante,
+                    END AS plan_o_cargo,
+                    e.id AS id_cliente,
                     col.id AS id_colaborador
                 FROM 
                     cuentas_por_cobrar c
@@ -1136,11 +1136,11 @@ class CuentasPorCobrar
                 LEFT JOIN
                     personas p ON p.id = c.id_persona
                 LEFT JOIN
-                    estudiantes e ON e.id_persona = p.id
+                    clientes e ON e.id_persona = p.id
                 LEFT JOIN
-                    estudiantes_x_grupos eg ON eg.id_estudiante = e.id AND eg.activo = 1
+                    clientes_x_planes eg ON eg.id_cliente = e.id AND eg.activo = 1
                 LEFT JOIN
-                    grupos g ON g.id = eg.id_grupo
+                    planes g ON g.id = eg.id_plan
                 LEFT JOIN
                     colaboradores col ON col.id_persona = p.id
                 LEFT JOIN
@@ -1154,7 +1154,7 @@ class CuentasPorCobrar
                     c.detalle, c.id_usuario, c.anulado,
                     ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
                     p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
-                    p.numero_identificacion, e.id, eg.id_grupo, g.nombre,
+                    p.numero_identificacion, e.id, eg.id_plan, g.nombre,
                     col.id, ca.nombre
                 ORDER BY 
                     c.fecha DESC, p.primer_apellido, p.primer_nombre

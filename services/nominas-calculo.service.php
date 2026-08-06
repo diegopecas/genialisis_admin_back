@@ -338,16 +338,16 @@ class NominasCalculo
             'editable' => false
         ];
         
-        // DED002 - Pensión (4%)
-        $pension = $salario_base * ($config['PENSION_EMPLEADO'] / 100);
+        // DED002 - Suscripción (4%)
+        $suscripcion = $salario_base * ($config['PENSION_EMPLEADO'] / 100);
         $conceptos[] = [
             'id_concepto' => 12,
             'codigo' => 'DED002',
-            'nombre' => 'Pensión',
+            'nombre' => 'Suscripción',
             'es_suma' => false,
             'cantidad' => 1,
-            'valor_unitario' => -$pension,
-            'valor_total' => -$pension,
+            'valor_unitario' => -$suscripcion,
+            'valor_total' => -$suscripcion,
             'editable' => false
         ];
         
@@ -479,7 +479,7 @@ class NominasCalculo
         $stmt = $db->prepare("
             INSERT INTO pagos_recibidos (
                 id, id_tenant,
-                id_estudiante, id_colaborador, id_acudiente,
+                id_cliente, id_colaborador, id_representante,
                 fecha, id_tipo_pago, valor_recibido, 
                 observaciones, id_usuario_registro
             ) VALUES (?, ?, NULL, ?, NULL, NOW(), 7, ?, 'Descuento nómina', 1)

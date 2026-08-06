@@ -53,7 +53,7 @@ class JWTService
      * Genera un token JWT para el usuario
      * 
      * @param array $userData Datos del usuario (id, id_persona, usuario, etc.)
-     * @param array $permisos Array de códigos de permisos del usuario (ej: ['menu.estudiantes', 'admin.productos.crear']) o ['*'] si es super_admin
+     * @param array $permisos Array de códigos de permisos del usuario (ej: ['menu.clientes', 'admin.productos.crear']) o ['*'] si es super_admin
      * @param string|null $tenant Codigo del tenant
      * @param array $extra Claims adicionales firmados (ej: ['portal' => 'padres', 'hd_v' => '1.0'])
      * @return string Token JWT

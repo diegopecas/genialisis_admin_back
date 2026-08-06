@@ -10,8 +10,8 @@ class HistorialRecordatoriosGenerales
             $sentence = $db->prepare("
                 SELECT 
                     hrg.id,
-                    hrg.id_estudiante,
-                    hrg.id_persona_acudiente,
+                    hrg.id_cliente,
+                    hrg.id_persona_representante,
                     hrg.telefono_usado,
                     hrg.nombre_destinatario,
                     hrg.tipo_recordatorio,
@@ -34,7 +34,7 @@ class HistorialRecordatoriosGenerales
         }
     }
 
-    public static function getByEstudiante($id)
+    public static function getByCliente($id)
     {
         $userData = JWTService::requerirAutenticacion();
 
@@ -43,8 +43,8 @@ class HistorialRecordatoriosGenerales
             $sentence = $db->prepare("
                 SELECT 
                     hrg.id,
-                    hrg.id_estudiante,
-                    hrg.id_persona_acudiente,
+                    hrg.id_cliente,
+                    hrg.id_persona_representante,
                     hrg.telefono_usado,
                     hrg.nombre_destinatario,
                     hrg.tipo_recordatorio,
@@ -54,17 +54,17 @@ class HistorialRecordatoriosGenerales
                     hrg.id_usuario,
                     hrg.fecha_envio
                 FROM historial_recordatorios_generales hrg
-                WHERE hrg.id_estudiante = :id_estudiante AND hrg.id_tenant = :id_tenant
+                WHERE hrg.id_cliente = :id_cliente AND hrg.id_tenant = :id_tenant
                 ORDER BY hrg.fecha_envio DESC
             ");
-            $sentence->bindParam(':id_estudiante', $id);
+            $sentence->bindParam(':id_cliente', $id);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
             Flight::json($response);
         } catch (Exception $e) {
-            error_log('Error en HistorialRecordatoriosGenerales::getByEstudiante: ' . $e->getMessage());
-            Flight::json(array('error' => 'Error al obtener historial por estudiante'), 500);
+            error_log('Error en HistorialRecordatoriosGenerales::getByCliente: ' . $e->getMessage());
+            Flight::json(array('error' => 'Error al obtener historial por cliente'), 500);
         }
     }
 
@@ -76,8 +76,8 @@ class HistorialRecordatoriosGenerales
             $db = Flight::db();
             $request = Flight::request();
 
-            $id_estudiante = $request->data['id_estudiante'];
-            $id_persona_acudiente = isset($request->data['id_persona_acudiente']) ? $request->data['id_persona_acudiente'] : null;
+            $id_cliente = $request->data['id_cliente'];
+            $id_persona_representante = isset($request->data['id_persona_representante']) ? $request->data['id_persona_representante'] : null;
             $telefono_usado = isset($request->data['telefono_usado']) ? $request->data['telefono_usado'] : null;
             $nombre_destinatario = isset($request->data['nombre_destinatario']) ? $request->data['nombre_destinatario'] : null;
             $tipo_recordatorio = $request->data['tipo_recordatorio'];
@@ -89,18 +89,18 @@ class HistorialRecordatoriosGenerales
             $idNew = Uuid::generar();
             $sentence = $db->prepare("
                 INSERT INTO historial_recordatorios_generales (
-                    id, id_tenant, id_estudiante, id_persona_acudiente, telefono_usado, nombre_destinatario,
+                    id, id_tenant, id_cliente, id_persona_representante, telefono_usado, nombre_destinatario,
                     tipo_recordatorio, medio_envio, compromiso, fecha_compromiso, id_usuario
                 ) VALUES (
-                    :id, :id_tenant, :id_estudiante, :id_persona_acudiente, :telefono_usado, :nombre_destinatario,
+                    :id, :id_tenant, :id_cliente, :id_persona_representante, :telefono_usado, :nombre_destinatario,
                     :tipo_recordatorio, :medio_envio, :compromiso, :fecha_compromiso, :id_usuario
                 )
             ");
 
             $sentence->bindValue(':id', $idNew);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
-            $sentence->bindParam(':id_persona_acudiente', $id_persona_acudiente);
+            $sentence->bindParam(':id_cliente', $id_cliente);
+            $sentence->bindParam(':id_persona_representante', $id_persona_representante);
             $sentence->bindParam(':telefono_usado', $telefono_usado);
             $sentence->bindParam(':nombre_destinatario', $nombre_destinatario);
             $sentence->bindParam(':tipo_recordatorio', $tipo_recordatorio);

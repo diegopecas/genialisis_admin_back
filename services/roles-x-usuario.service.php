@@ -14,7 +14,7 @@ class RolesXUsuario
                 p.numero_identificacion,
                 CASE WHEN rxu.id IS NULL THEN 0 ELSE 1 END asignado,
                 CASE WHEN EXISTS (SELECT 1 FROM colaboradores c WHERE c.id_persona = p.id) THEN 1 ELSE 0 END es_colaborador,
-                CASE WHEN EXISTS (SELECT 1 FROM acudientes a WHERE a.id_persona = p.id) THEN 1 ELSE 0 END es_acudiente
+                CASE WHEN EXISTS (SELECT 1 FROM representantes a WHERE a.id_persona = p.id) THEN 1 ELSE 0 END es_representante
                 FROM usuarios u
                 INNER JOIN personas p ON u.id_persona = p.id
                 LEFT JOIN roles_x_usuario rxu ON rxu.id_usuario = u.id AND rxu.id_rol = :id_rol

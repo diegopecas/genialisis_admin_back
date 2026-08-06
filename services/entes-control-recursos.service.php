@@ -4,8 +4,8 @@ class EntesControlRecursos
     // Mapa tipo de persona (codigo) -> tabla de rol.
     // Es una lista blanca: solo estos valores pueden llegar al SQL.
     private static $tablasRol = array(
-        'estudiante'   => 'estudiantes',
-        'acudiente'    => 'acudientes',
+        'cliente'   => 'clientes',
+        'representante'    => 'representantes',
         'colaborador'  => 'colaboradores',
         'autorizado'   => 'autorizados_recoger',
         'ente_control' => 'entes_control',
@@ -200,8 +200,8 @@ class EntesControlRecursos
             $recursos = $sentence->fetchAll();
 
             // Tipos de documento permitidos, separados por origen.
-            $tiposEstudiante   = array();  // documentos del propio estudiante
-            $tiposAcudiente    = array();  // documentos de los acudientes
+            $tiposCliente   = array();  // documentos del propio cliente
+            $tiposRepresentante    = array();  // documentos de los representantes
             $tiposColaborador  = array();
             $tiposInstitucion  = array();
             $tiposEnte         = array();  // documentos propios del ente
@@ -212,8 +212,8 @@ class EntesControlRecursos
                     $reportesIds[] = $r['id_reporte'];
                 } else if ($r['tipo_recurso'] === 'documento') {
                     switch ($r['codigo_tipo_persona']) {
-                        case 'estudiante':   $tiposEstudiante[]  = $r['id_tipo_documento']; break;
-                        case 'acudiente':    $tiposAcudiente[]   = $r['id_tipo_documento']; break;
+                        case 'cliente':   $tiposCliente[]  = $r['id_tipo_documento']; break;
+                        case 'representante':    $tiposRepresentante[]   = $r['id_tipo_documento']; break;
                         case 'colaborador':  $tiposColaborador[] = $r['id_tipo_documento']; break;
                         case 'institucion':  $tiposInstitucion[] = $r['id_tipo_documento']; break;
                         case 'ente_control': $tiposEnte[]        = $r['id_tipo_documento']; break;
@@ -221,41 +221,41 @@ class EntesControlRecursos
                 }
             }
 
-            // 2) Documentos de ESTUDIANTES (solo activos, tipos permitidos)
-            $docsEstudiante = array();
-            if (!empty($tiposEstudiante)) {
-                $ph = implode(',', array_fill(0, count($tiposEstudiante), '?'));
+            // 2) Documentos de CLIENTES (solo activos, tipos permitidos)
+            $docsCliente = array();
+            if (!empty($tiposCliente)) {
+                $ph = implode(',', array_fill(0, count($tiposCliente), '?'));
                 $sql = "
-                    SELECT e.id AS id_estudiante, e.id_persona,
+                    SELECT e.id AS id_cliente, e.id_persona,
                            dp.id, dp.nombre_archivo, dp.fecha_vencimiento,
                            td.nombre AS nombre_tipo_documento
                     FROM documentos_personas dp
-                    INNER JOIN estudiantes e ON e.id_persona = dp.id_persona AND e.activo = 1 AND e.id_tenant = ?
+                    INNER JOIN clientes e ON e.id_persona = dp.id_persona AND e.activo = 1 AND e.id_tenant = ?
                     INNER JOIN tipos_documentos td ON td.id = dp.id_tipo_documento
                     WHERE dp.id_tenant = ?
                       AND dp.activo = 1
                       AND dp.id_tipo_documento IN ($ph)
                 ";
                 $st = $db->prepare($sql);
-                $params = array_merge(array($idTenant, $idTenant), $tiposEstudiante);
+                $params = array_merge(array($idTenant, $idTenant), $tiposCliente);
                 $st->execute($params);
-                $docsEstudiante = $st->fetchAll();
+                $docsCliente = $st->fetchAll();
             }
 
-            // 3) Documentos de ACUDIENTES (colgados de su estudiante)
-            $docsAcudiente = array();
-            if (!empty($tiposAcudiente)) {
-                $ph = implode(',', array_fill(0, count($tiposAcudiente), '?'));
+            // 3) Documentos de REPRESENTANTES (colgados de su cliente)
+            $docsRepresentante = array();
+            if (!empty($tiposRepresentante)) {
+                $ph = implode(',', array_fill(0, count($tiposRepresentante), '?'));
                 $sql = "
-                    SELECT a.id_estudiante,
+                    SELECT a.id_cliente,
                            dp.id, dp.nombre_archivo, dp.fecha_vencimiento,
                            td.nombre AS nombre_tipo_documento,
                            COALESCE(
                                NULLIF(TRIM(p.razon_social), ''),
                                TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))
-                           ) AS nombre_acudiente
+                           ) AS nombre_representante
                     FROM documentos_personas dp
-                    INNER JOIN acudientes a ON a.id_persona = dp.id_persona AND a.activo = 1 AND a.id_tenant = ?
+                    INNER JOIN representantes a ON a.id_persona = dp.id_persona AND a.activo = 1 AND a.id_tenant = ?
                     INNER JOIN personas p ON p.id = dp.id_persona
                     INNER JOIN tipos_documentos td ON td.id = dp.id_tipo_documento
                     WHERE dp.id_tenant = ?
@@ -263,24 +263,24 @@ class EntesControlRecursos
                       AND dp.id_tipo_documento IN ($ph)
                 ";
                 $st = $db->prepare($sql);
-                $params = array_merge(array($idTenant, $idTenant), $tiposAcudiente);
+                $params = array_merge(array($idTenant, $idTenant), $tiposRepresentante);
                 $st->execute($params);
-                $docsAcudiente = $st->fetchAll();
+                $docsRepresentante = $st->fetchAll();
             }
 
-            // 4) Armar las carpetas por estudiante
-            $carpetas = array();  // id_estudiante => carpeta
+            // 4) Armar las carpetas por cliente
+            $carpetas = array();  // id_cliente => carpeta
 
-            foreach ($docsEstudiante as $d) {
-                $ide = $d['id_estudiante'];
+            foreach ($docsCliente as $d) {
+                $ide = $d['id_cliente'];
                 if (!isset($carpetas[$ide])) {
                     $carpetas[$ide] = array(
-                        'id_estudiante' => $ide,
-                        'documentos_estudiante' => array(),
-                        'documentos_acudientes' => array()
+                        'id_cliente' => $ide,
+                        'documentos_cliente' => array(),
+                        'documentos_representantes' => array()
                     );
                 }
-                $carpetas[$ide]['documentos_estudiante'][] = array(
+                $carpetas[$ide]['documentos_cliente'][] = array(
                     'id' => $d['id'],
                     'nombre_archivo' => $d['nombre_archivo'],
                     'fecha_vencimiento' => $d['fecha_vencimiento'],
@@ -288,61 +288,61 @@ class EntesControlRecursos
                 );
             }
 
-            foreach ($docsAcudiente as $d) {
-                $ide = $d['id_estudiante'];
+            foreach ($docsRepresentante as $d) {
+                $ide = $d['id_cliente'];
                 if (!isset($carpetas[$ide])) {
                     $carpetas[$ide] = array(
-                        'id_estudiante' => $ide,
-                        'documentos_estudiante' => array(),
-                        'documentos_acudientes' => array()
+                        'id_cliente' => $ide,
+                        'documentos_cliente' => array(),
+                        'documentos_representantes' => array()
                     );
                 }
-                $carpetas[$ide]['documentos_acudientes'][] = array(
+                $carpetas[$ide]['documentos_representantes'][] = array(
                     'id' => $d['id'],
                     'nombre_archivo' => $d['nombre_archivo'],
                     'fecha_vencimiento' => $d['fecha_vencimiento'],
                     'tipo_documento' => $d['nombre_tipo_documento'],
-                    'nombre_acudiente' => $d['nombre_acudiente']
+                    'nombre_representante' => $d['nombre_representante']
                 );
             }
 
-            // 5) Ponerle nombre y foto a cada carpeta (estudiante)
+            // 5) Ponerle nombre y foto a cada carpeta (cliente)
             $resultado = array();
             if (!empty($carpetas)) {
                 $ids = array_keys($carpetas);
                 $ph = implode(',', array_fill(0, count($ids), '?'));
                 $st = $db->prepare("
-                    SELECT e.id AS id_estudiante,
-                           TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_estudiante,
+                    SELECT e.id AS id_cliente,
+                           TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_cliente,
                            p.numero_identificacion,
                            p.foto
-                    FROM estudiantes e
+                    FROM clientes e
                     INNER JOIN personas p ON p.id = e.id_persona
                     WHERE e.id IN ($ph)
                 ");
                 $st->execute($ids);
-                $infoEstudiantes = array();
+                $infoClientes = array();
                 foreach ($st->fetchAll() as $info) {
-                    $infoEstudiantes[$info['id_estudiante']] = $info;
+                    $infoClientes[$info['id_cliente']] = $info;
                 }
 
                 foreach ($carpetas as $ide => $carpeta) {
-                    $info = $infoEstudiantes[$ide] ?? array();
-                    $total = count($carpeta['documentos_estudiante']) + count($carpeta['documentos_acudientes']);
+                    $info = $infoClientes[$ide] ?? array();
+                    $total = count($carpeta['documentos_cliente']) + count($carpeta['documentos_representantes']);
                     $resultado[] = array(
-                        'id_estudiante'          => $ide,
-                        'nombre_estudiante'      => $info['nombre_estudiante'] ?? '',
+                        'id_cliente'          => $ide,
+                        'nombre_cliente'      => $info['nombre_cliente'] ?? '',
                         'numero_identificacion'  => $info['numero_identificacion'] ?? '',
                         'foto'                   => $info['foto'] ?? null,
                         'total_documentos'       => $total,
-                        'documentos_estudiante'  => $carpeta['documentos_estudiante'],
-                        'documentos_acudientes'  => $carpeta['documentos_acudientes']
+                        'documentos_cliente'  => $carpeta['documentos_cliente'],
+                        'documentos_representantes'  => $carpeta['documentos_representantes']
                     );
                 }
 
                 // Ordenar por nombre
                 usort($resultado, function ($a, $b) {
-                    return strcasecmp($a['nombre_estudiante'], $b['nombre_estudiante']);
+                    return strcasecmp($a['nombre_cliente'], $b['nombre_cliente']);
                 });
             }
 
@@ -402,7 +402,7 @@ class EntesControlRecursos
             $carpetasColaboradores = $carpetasPlanas('colaboradores', $tiposColaborador);
             $carpetasEnte         = $carpetasPlanas('entes_control', $tiposEnte);
 
-            // 6) Reportes (no dependen de estudiante)
+            // 6) Reportes (no dependen de cliente)
             $reportes = array();
             if (!empty($reportesIds)) {
                 $ph = implode(',', array_fill(0, count($reportesIds), '?'));
@@ -419,7 +419,7 @@ class EntesControlRecursos
             }
 
             Flight::json(array(
-                'estudiantes'   => $resultado,
+                'clientes'   => $resultado,
                 'institucion'   => $carpetasInstitucion,
                 'colaboradores' => $carpetasColaboradores,
                 'entes'         => $carpetasEnte,

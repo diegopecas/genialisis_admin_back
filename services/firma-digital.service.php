@@ -91,7 +91,7 @@ class FirmaDigital
             // Firmantes externos (opcional): personas que NO están en la tabla personas,
             // por ejemplo el representante legal. Estructura esperada por cada item:
             //   ['email' => '...', 'first_name' => '...', 'last_name' => '...', 'es_representante' => true|false]
-            // Si no se envía, el comportamiento es idéntico al original (estudiantes).
+            // Si no se envía, el comportamiento es idéntico al original (clientes).
             $firmantesExternos = Flight::request()->data['firmantes_externos'] ?? [];
             $externosMap = [];
             foreach ($firmantesExternos as $externo) {

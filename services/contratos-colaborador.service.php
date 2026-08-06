@@ -4,14 +4,14 @@
  * Servicio para gestión de Contratos de Colaboradores
  * CRUD sobre la tabla contratos_colaborador.
  *
- * Patrón seguido (igual a contratos_matricula.service.php):
+ * Patrón seguido (igual a contratos_cliente.service.php):
  *  - Métodos estáticos, Flight::db(), Flight::json()
  *  - new() devuelve {id} (lastInsertId)
  *  - Soft delete vía anular() (activo = 0)
  *  - Autenticación JWT + validación de permisos
  *
  * NOTA: el código de permiso usado es 'colaboradores.contratos', análogo a
- * 'estudiantes.contratos'. Ajustar si la nomenclatura real difiere.
+ * 'clientes.contratos'. Ajustar si la nomenclatura real difiere.
  */
 
 class ContratosColaborador

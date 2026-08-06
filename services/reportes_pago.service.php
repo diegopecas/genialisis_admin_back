@@ -7,8 +7,8 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
-                rp.id_acudiente,
+                rp.id_cliente,
+                rp.id_representante,
                 rp.id_persona_reporta,
                 rp.id_colaborador_recibio,
                 rp.id_tipo_pago,
@@ -21,16 +21,16 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_estudiante,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_acudiente,
+                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
+                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
                 TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
                 TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio,
                 dp.nombre_archivo AS comprobante_nombre,
                 dp.ruta_archivo AS comprobante_ruta
             FROM reportes_pago rp
-            INNER JOIN estudiantes est ON est.id = rp.id_estudiante
+            INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
-            INNER JOIN acudientes acu ON acu.id = rp.id_acudiente
+            INNER JOIN representantes acu ON acu.id = rp.id_representante
             INNER JOIN personas pa ON pa.id = acu.id_persona
             INNER JOIN personas pr ON pr.id = rp.id_persona_reporta
             INNER JOIN colaboradores col ON col.id = rp.id_colaborador_recibio
@@ -55,8 +55,8 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
-                rp.id_acudiente,
+                rp.id_cliente,
+                rp.id_representante,
                 rp.id_persona_reporta,
                 rp.id_colaborador_recibio,
                 rp.id_tipo_pago,
@@ -68,14 +68,14 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_estudiante,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_acudiente,
+                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
+                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
                 TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
                 TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
             FROM reportes_pago rp
-            INNER JOIN estudiantes est ON est.id = rp.id_estudiante
+            INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
-            INNER JOIN acudientes acu ON acu.id = rp.id_acudiente
+            INNER JOIN representantes acu ON acu.id = rp.id_representante
             INNER JOIN personas pa ON pa.id = acu.id_persona
             INNER JOIN personas pr ON pr.id = rp.id_persona_reporta
             INNER JOIN colaboradores col ON col.id = rp.id_colaborador_recibio
@@ -90,14 +90,14 @@ class ReportesPago
         Flight::json($response);
     }
 
-    public static function getByEstudiante($id_estudiante)
+    public static function getByCliente($id_cliente)
     {
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
-                rp.id_acudiente,
+                rp.id_cliente,
+                rp.id_representante,
                 rp.id_persona_reporta,
                 rp.id_colaborador_recibio,
                 rp.id_tipo_pago,
@@ -120,10 +120,10 @@ class ReportesPago
             INNER JOIN personas pr ON pr.id = rp.id_persona_reporta
             INNER JOIN tipos_pagos tp ON tp.id = rp.id_tipo_pago
             LEFT JOIN documentos_personas dp ON dp.id = rp.id_documento_persona
-            WHERE rp.id_estudiante = :id_estudiante AND rp.id_tenant = :id_tenant
+            WHERE rp.id_cliente = :id_cliente AND rp.id_tenant = :id_tenant
             ORDER BY rp.fecha_registro DESC
         ");
-        $sentence->bindParam(':id_estudiante', $id_estudiante);
+        $sentence->bindParam(':id_cliente', $id_cliente);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll(PDO::FETCH_ASSOC);
@@ -139,8 +139,8 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
-                rp.id_acudiente,
+                rp.id_cliente,
+                rp.id_representante,
                 rp.id_colaborador_recibio,
                 rp.id_tipo_pago,
                 rp.valor,
@@ -151,10 +151,10 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_estudiante,
+                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
                 TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
             FROM reportes_pago rp
-            INNER JOIN estudiantes est ON est.id = rp.id_estudiante
+            INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
             INNER JOIN colaboradores col ON col.id = rp.id_colaborador_recibio
             INNER JOIN personas pc ON pc.id = col.id_persona
@@ -179,8 +179,8 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
-                rp.id_acudiente,
+                rp.id_cliente,
+                rp.id_representante,
                 rp.id_colaborador_recibio,
                 rp.id_tipo_pago,
                 rp.valor,
@@ -189,14 +189,14 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.estado,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_estudiante,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_acudiente,
+                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
+                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
                 TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
                 TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
             FROM reportes_pago rp
-            INNER JOIN estudiantes est ON est.id = rp.id_estudiante
+            INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
-            INNER JOIN acudientes acu ON acu.id = rp.id_acudiente
+            INNER JOIN representantes acu ON acu.id = rp.id_representante
             INNER JOIN personas pa ON pa.id = acu.id_persona
             INNER JOIN personas pr ON pr.id = rp.id_persona_reporta
             INNER JOIN colaboradores col ON col.id = rp.id_colaborador_recibio
@@ -223,17 +223,17 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 rp.id,
-                rp.id_estudiante,
+                rp.id_cliente,
                 rp.valor,
                 rp.fecha_pago,
                 rp.fecha_registro,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_estudiante,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_acudiente
+                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
+                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante
             FROM reportes_pago rp
-            INNER JOIN estudiantes est ON est.id = rp.id_estudiante
+            INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
-            INNER JOIN acudientes acu ON acu.id = rp.id_acudiente
+            INNER JOIN representantes acu ON acu.id = rp.id_representante
             INNER JOIN personas pa ON pa.id = acu.id_persona
             INNER JOIN tipos_pagos tp ON tp.id = rp.id_tipo_pago
             WHERE rp.id_colaborador_recibio = :id_colaborador
@@ -257,7 +257,7 @@ class ReportesPago
             $db = Flight::db();
             $db->beginTransaction();
 
-            $id_estudiante = Flight::request()->data['id_estudiante'];
+            $id_cliente = Flight::request()->data['id_cliente'];
             $id_persona_reporta = Flight::request()->data['id_persona_reporta'];
             $id_colaborador_recibio = Flight::request()->data['id_colaborador_recibio'];
             $id_tipo_pago = Flight::request()->data['id_tipo_pago'];
@@ -265,40 +265,40 @@ class ReportesPago
             $fecha_pago = Flight::request()->data['fecha_pago'];
             $observaciones = isset(Flight::request()->data['observaciones']) ? Flight::request()->data['observaciones'] : null;
 
-            // Buscar id_acudiente a partir de id_persona e id_estudiante
-            $stmtAcudiente = $db->prepare("
-                SELECT id FROM acudientes 
+            // Buscar id_representante a partir de id_persona e id_cliente
+            $stmtRepresentante = $db->prepare("
+                SELECT id FROM representantes 
                 WHERE id_persona = :id_persona 
-                  AND id_estudiante = :id_estudiante 
+                  AND id_cliente = :id_cliente 
                   AND activo = 1 
                   AND id_tenant = :id_tenant
                 LIMIT 1
             ");
-            $stmtAcudiente->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $stmtAcudiente->bindParam(':id_persona', $id_persona_reporta);
-            $stmtAcudiente->bindParam(':id_estudiante', $id_estudiante);
-            $stmtAcudiente->execute();
-            $acudiente = $stmtAcudiente->fetch(PDO::FETCH_ASSOC);
+            $stmtRepresentante->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $stmtRepresentante->bindParam(':id_persona', $id_persona_reporta);
+            $stmtRepresentante->bindParam(':id_cliente', $id_cliente);
+            $stmtRepresentante->execute();
+            $representante = $stmtRepresentante->fetch(PDO::FETCH_ASSOC);
 
-            if (!$acudiente) {
+            if (!$representante) {
                 $db->rollback();
-                Flight::json(['error' => 'No se encontró registro de acudiente para esta persona y estudiante'], 400);
+                Flight::json(['error' => 'No se encontró registro de representante para esta persona y cliente'], 400);
                 return;
             }
 
-            $id_acudiente = $acudiente['id'];
+            $id_representante = $representante['id'];
 
             $idNew = Uuid::generar();
             $sentence = $db->prepare("
                 INSERT INTO reportes_pago 
-                    (id, id_tenant, id_estudiante, id_acudiente, id_persona_reporta, id_colaborador_recibio, id_tipo_pago, valor, fecha_pago, observaciones, estado, fecha_registro) 
+                    (id, id_tenant, id_cliente, id_representante, id_persona_reporta, id_colaborador_recibio, id_tipo_pago, valor, fecha_pago, observaciones, estado, fecha_registro) 
                 VALUES 
-                    (:id, :id_tenant, :id_estudiante, :id_acudiente, :id_persona_reporta, :id_colaborador_recibio, :id_tipo_pago, :valor, :fecha_pago, :observaciones, 'pendiente', NOW())
+                    (:id, :id_tenant, :id_cliente, :id_representante, :id_persona_reporta, :id_colaborador_recibio, :id_tipo_pago, :valor, :fecha_pago, :observaciones, 'pendiente', NOW())
             ");
             $sentence->bindValue(':id', $idNew);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
-            $sentence->bindParam(':id_acudiente', $id_acudiente);
+            $sentence->bindParam(':id_cliente', $id_cliente);
+            $sentence->bindParam(':id_representante', $id_representante);
             $sentence->bindParam(':id_persona_reporta', $id_persona_reporta);
             $sentence->bindParam(':id_colaborador_recibio', $id_colaborador_recibio);
             $sentence->bindParam(':id_tipo_pago', $id_tipo_pago);
@@ -378,9 +378,9 @@ class ReportesPago
     }
 
     /**
-     * Obtener reportes pendientes de un estudiante (para asociar desde el sistema institucional)
+     * Obtener reportes pendientes de un cliente (para asociar desde el sistema institucional)
      */
-    public static function getPendientesByEstudiante($id_estudiante)
+    public static function getPendientesByCliente($id_cliente)
     {
         $db = Flight::db();
         $sentence = $db->prepare("
@@ -403,12 +403,12 @@ class ReportesPago
             INNER JOIN personas pc ON pc.id = col.id_persona
             INNER JOIN tipos_pagos tp ON tp.id = rp.id_tipo_pago
             LEFT JOIN documentos_personas dp ON dp.id = rp.id_documento_persona
-            WHERE rp.id_estudiante = :id_estudiante
+            WHERE rp.id_cliente = :id_cliente
               AND rp.estado = 'pendiente'
               AND rp.id_tenant = :id_tenant
             ORDER BY rp.fecha_registro ASC
         ");
-        $sentence->bindParam(':id_estudiante', $id_estudiante);
+        $sentence->bindParam(':id_cliente', $id_cliente);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll(PDO::FETCH_ASSOC);

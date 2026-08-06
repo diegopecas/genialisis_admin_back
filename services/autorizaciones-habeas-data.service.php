@@ -7,7 +7,7 @@ class AutorizacionesHabeasData
     private static function claveVersion($portal)
     {
         return $portal === JWTService::PORTAL_PADRES
-            ? 'habeas_data_version_actual_acudientes'
+            ? 'habeas_data_version_actual_representantes'
             : 'habeas_data_version_actual_colaboradores';
     }
 
@@ -17,7 +17,7 @@ class AutorizacionesHabeasData
     private static function clavePlantilla($portal)
     {
         return $portal === JWTService::PORTAL_PADRES
-            ? 'politica_habeas_data_acudientes'
+            ? 'politica_habeas_data_representantes'
             : 'politica_habeas_data_colaboradores';
     }
 
@@ -27,7 +27,7 @@ class AutorizacionesHabeasData
     private static function claveActivo($portal)
     {
         return $portal === JWTService::PORTAL_PADRES
-            ? 'habeas_data_activo_acudientes'
+            ? 'habeas_data_activo_representantes'
             : 'habeas_data_activo_colaboradores';
     }
 

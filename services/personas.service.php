@@ -496,7 +496,7 @@ class Personas
 
     /**
      * Obtiene todos los cumpleañeros del día de hoy
-     * Incluye: estudiantes activos y colaboradores activos
+     * Incluye: clientes activos y colaboradores activos
      * Para colaboradores: devuelve género, sobrenombre, si es docente y nombre_corto del cargo
      */
     public static function getCumpleanosHoy()
@@ -505,7 +505,7 @@ class Personas
             $db = Flight::db();
 
             // Colaboradores activos que cumplen años hoy
-            // NÚCLEO: la consulta de estudiantes y el JOIN a docentes pertenecen al dominio educativo;
+            // NÚCLEO: la consulta de clientes y el JOIN a docentes pertenecen al dominio educativo;
             // se conservan los campos del contrato (tipo, es_docente, cargo_corto) para no romper el front.
             $stmtColaboradores = $db->prepare("
                 SELECT 

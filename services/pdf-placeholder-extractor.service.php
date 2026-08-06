@@ -68,7 +68,7 @@ class PdfPlaceholderExtractor
                     if ($recipientIndex == 99) {
                         $tempId = 'temp_representante';
                     } else {
-                        // Para acudientes: mapear al índice correcto
+                        // Para representantes: mapear al índice correcto
                         // Si recipientIndex > numFirmantes, usar módulo para ciclar
                         $mappedIndex = $recipientIndex;
                         if ($numFirmantes > 0 && $recipientIndex > $numFirmantes) {
@@ -147,23 +147,23 @@ class PdfPlaceholderExtractor
             
             // =====================================================
             // MÉTODO 3: Fallback - Buscar placeholders muy antiguos
-            // Formato: [SIGN_ACUDIENTE_1], [SIGN_ACUDIENTE_2], [SIGN_REPRESENTANTE]
+            // Formato: [SIGN_REPRESENTANTE_1], [SIGN_REPRESENTANTE_2], [SIGN_REPRESENTANTE]
             // =====================================================
             error_log("⚠️ No se encontraron placeholders codificados, buscando formato legacy...");
             
             $placeholders = [];
             
-            if (preg_match('/\[SIGN_ACUDIENTE_1\]/', $content)) {
-                $placeholders[] = 'SIGN_ACUDIENTE_1';
+            if (preg_match('/\[SIGN_REPRESENTANTE_1\]/', $content)) {
+                $placeholders[] = 'SIGN_REPRESENTANTE_1';
             }
-            if (preg_match('/\[SIGN_ACUDIENTE_2\]/', $content)) {
-                $placeholders[] = 'SIGN_ACUDIENTE_2';
+            if (preg_match('/\[SIGN_REPRESENTANTE_2\]/', $content)) {
+                $placeholders[] = 'SIGN_REPRESENTANTE_2';
             }
-            if (preg_match('/\[SIGN_ACUDIENTE_3\]/', $content)) {
-                $placeholders[] = 'SIGN_ACUDIENTE_3';
+            if (preg_match('/\[SIGN_REPRESENTANTE_3\]/', $content)) {
+                $placeholders[] = 'SIGN_REPRESENTANTE_3';
             }
-            if (preg_match('/\[SIGN_ACUDIENTE_4\]/', $content)) {
-                $placeholders[] = 'SIGN_ACUDIENTE_4';
+            if (preg_match('/\[SIGN_REPRESENTANTE_4\]/', $content)) {
+                $placeholders[] = 'SIGN_REPRESENTANTE_4';
             }
             
             if (empty($placeholders)) {

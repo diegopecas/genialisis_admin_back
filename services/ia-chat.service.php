@@ -375,13 +375,13 @@ class IaChat
             return 'admin';
         }
 
-        // ¿Es acudiente?
-        $sentence = $db->prepare("SELECT id FROM acudientes WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
+        // ¿Es representante?
+        $sentence = $db->prepare("SELECT id FROM representantes WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
         $sentence->bindParam(':id_persona', $id_persona);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         if ($sentence->fetch()) {
-            return 'acudiente';
+            return 'representante';
         }
 
         return 'general';
@@ -489,12 +489,12 @@ class IaChat
             return $contexto;
         }
 
-        // Obtener IDs de estudiantes y grupos a los que tiene acceso
-        $ids_estudiantes = self::obtenerIdsEstudiantesAcceso($db, $id_persona, $rol);
-        $ids_grupos = self::obtenerIdsGruposAcceso($db, $id_persona);
+        // Obtener IDs de clientes y planes a los que tiene acceso
+        $ids_clientes = self::obtenerIdsClientesAcceso($db, $id_persona, $rol);
+        $ids_planes = self::obtenerIdsPlanesAcceso($db, $id_persona);
 
-        $csv_estudiantes = !empty($ids_estudiantes) ? implode(',', $ids_estudiantes) : '';
-        $csv_grupos = !empty($ids_grupos) ? implode(',', $ids_grupos) : '';
+        $csv_clientes = !empty($ids_clientes) ? implode(',', $ids_clientes) : '';
+        $csv_planes = !empty($ids_planes) ? implode(',', $ids_planes) : '';
 
         // Foto de contexto global (operativo/financiero) reusando el dashboard.
         // Solo se calcula si el usuario tiene algún permiso global que la necesite.
@@ -506,14 +506,14 @@ class IaChat
         // Por cada permiso, armar el bloque de contexto correspondiente
         foreach ($permisos as $permiso) {
             $codigo = $permiso['codigo'];
-            $requiere_ids = (int) $permiso['requiere_ids_estudiantes'];
+            $requiere_ids = (int) $permiso['requiere_ids_clientes'];
 
-            // Si requiere IDs y no tiene ni estudiantes ni grupos, saltar
-            if ($requiere_ids && empty($ids_estudiantes) && empty($ids_grupos)) {
+            // Si requiere IDs y no tiene ni clientes ni planes, saltar
+            if ($requiere_ids && empty($ids_clientes) && empty($ids_planes)) {
                 continue;
             }
 
-            $contexto .= self::obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos, $foto);
+            $contexto .= self::obtenerContextoPorTipo($db, $codigo, $csv_clientes, $csv_planes, $foto);
         }
 
         // Agregar documentación de módulos accesibles desde db_master
@@ -607,7 +607,7 @@ class IaChat
     private static function obtenerPermisosUsuario($db, $id_persona)
     {
         $sentence = $db->prepare("
-            SELECT t.codigo, t.nombre, t.requiere_ids_estudiantes
+            SELECT t.codigo, t.nombre, t.requiere_ids_clientes
             FROM ia_chat_permisos_usuario p
             INNER JOIN ia_chat_tipos_informacion t ON p.id_tipo_informacion = t.id
             WHERE p.id_persona = :id_persona 
@@ -622,17 +622,17 @@ class IaChat
     }
 
     /**
-     * Obtiene los IDs de estudiantes a los que la persona tiene acceso
+     * Obtiene los IDs de clientes a los que la persona tiene acceso
      * Se resuelve en tiempo real según las relaciones en la BD
      */
-    private static function obtenerIdsEstudiantesAcceso($db, $id_persona, $rol)
+    private static function obtenerIdsClientesAcceso($db, $id_persona, $rol)
     {
         $ids = [];
 
-        // Como acudiente: sus hijos
+        // Como representante: sus hijos
         $sentence = $db->prepare("
-            SELECT DISTINCT a.id_estudiante 
-            FROM acudientes a 
+            SELECT DISTINCT a.id_cliente 
+            FROM representantes a 
             WHERE a.id_persona = :id_persona AND a.activo = 1 AND a.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id_persona', $id_persona);
@@ -641,15 +641,15 @@ class IaChat
         $hijos = $sentence->fetchAll(PDO::FETCH_COLUMN);
         $ids = array_merge($ids, $hijos);
 
-        // Como admin/colaborador: todos los estudiantes activos
+        // Como admin/colaborador: todos los clientes activos
         $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
         $sentence->bindParam(':id_persona', $id_persona);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         if ($sentence->fetch()) {
             $sentence2 = $db->prepare("
-                SELECT DISTINCT eg.id_estudiante 
-                FROM estudiantes_x_grupos eg 
+                SELECT DISTINCT eg.id_cliente 
+                FROM clientes_x_planes eg 
                 WHERE eg.activo = 1 AND eg.id_tenant = :id_tenant
             ");
             $sentence2->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -662,10 +662,10 @@ class IaChat
     }
 
     /**
-     * Obtiene los IDs de grupos (planes) a los que la persona tiene acceso.
+     * Obtiene los IDs de planes (planes) a los que la persona tiene acceso.
      * Un colaborador activo ve todos los planes; el resto no ve ninguno.
      */
-    private static function obtenerIdsGruposAcceso($db, $id_persona)
+    private static function obtenerIdsPlanesAcceso($db, $id_persona)
     {
         $sentence = $db->prepare("SELECT id FROM colaboradores WHERE id_persona = :id_persona AND activo = 1 AND id_tenant = :id_tenant LIMIT 1");
         $sentence->bindParam(':id_persona', $id_persona);
@@ -675,7 +675,7 @@ class IaChat
             return [];
         }
 
-        $sentence2 = $db->prepare("SELECT id FROM grupos WHERE id_tenant = :id_tenant");
+        $sentence2 = $db->prepare("SELECT id FROM planes WHERE id_tenant = :id_tenant");
         $sentence2->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence2->execute();
         return $sentence2->fetchAll(PDO::FETCH_COLUMN);
@@ -683,25 +683,25 @@ class IaChat
 
     /**
      * Retorna el bloque de contexto para un tipo de información.
-     * - Personal (est/grupo): datos reales vía stored procedure.
+     * - Personal (est/plan): datos reales vía stored procedure.
      * - Global operativo/financiero: datos reales del dashboard (foto en caché).
      * - Resto: aún sin fuente de datos, devuelve texto genérico (no inventa).
      */
-    private static function obtenerContextoPorTipo($db, $codigo, $csv_estudiantes, $csv_grupos, $foto = null)
+    private static function obtenerContextoPorTipo($db, $codigo, $csv_clientes, $csv_planes, $foto = null)
     {
         switch ($codigo) {
             case 'est_personal':
-                return self::llamarSP($db, 'sp_ia_contexto_personal', $csv_estudiantes, null);
-            case 'grupo_personal':
-                return self::llamarSP($db, 'sp_ia_contexto_personal', null, $csv_grupos);
+                return self::llamarSP($db, 'sp_ia_contexto_personal', $csv_clientes, null);
+            case 'plan_personal':
+                return self::llamarSP($db, 'sp_ia_contexto_personal', null, $csv_planes);
             case 'est_academico':
                 return self::contextoDummyEstAcademico([]);
             case 'est_financiero':
                 return self::contextoDummyEstFinanciero([]);
-            case 'grupo_academico':
-                return self::contextoDummyGrupoAcademico([]);
-            case 'grupo_financiero':
-                return self::contextoDummyGrupoFinanciero([]);
+            case 'plan_academico':
+                return self::contextoDummyPlanAcademico([]);
+            case 'plan_financiero':
+                return self::contextoDummyPlanFinanciero([]);
             case 'global_operativo':
                 // Datos reales del dashboard (resumen + detalle); si la foto no está, cae a genérico
                 if (is_array($foto) && isset($foto['operativo'])) {
@@ -732,12 +732,12 @@ class IaChat
     /**
      * Llama a un stored procedure de contexto y retorna el texto
      */
-    private static function llamarSP($db, $nombre_sp, $csv_estudiantes, $csv_grupos)
+    private static function llamarSP($db, $nombre_sp, $csv_clientes, $csv_planes)
     {
         try {
             $sentence = $db->prepare("CALL {$nombre_sp}(:ids_est, :ids_gru, :id_tenant)");
-            $sentence->bindParam(':ids_est', $csv_estudiantes, PDO::PARAM_STR);
-            $sentence->bindParam(':ids_gru', $csv_grupos, PDO::PARAM_STR);
+            $sentence->bindParam(':ids_est', $csv_clientes, PDO::PARAM_STR);
+            $sentence->bindParam(':ids_gru', $csv_planes, PDO::PARAM_STR);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $resultado = $sentence->fetch(PDO::FETCH_ASSOC);
@@ -814,17 +814,17 @@ class IaChat
 
         $texto = "\nDATOS OPERATIVOS DEL JARDÍN (fecha {$fecha}):\n";
 
-        $texto .= "Asistencia de estudiantes:\n";
-        $texto .= "- Estudiantes activos: " . (int) ($a['total_activos'] ?? 0) . "\n";
+        $texto .= "Asistencia de clientes:\n";
+        $texto .= "- Clientes activos: " . (int) ($a['total_activos'] ?? 0) . "\n";
         $texto .= "- Asistieron hoy: " . (int) ($a['total_asistieron'] ?? 0) . " (" . ($a['porcentaje'] ?? 0) . "%)\n";
         if (!empty($a['es_hoy'])) {
             $texto .= "- Presentes en este momento: " . (int) ($a['total_presentes_ahora'] ?? 0) . "\n";
             $texto .= "- Ya salieron: " . (int) ($a['total_salieron'] ?? 0) . "\n";
         }
-        if (!empty($a['por_grupo'])) {
-            $texto .= "Asistencia por grupo:\n";
-            foreach ($a['por_grupo'] as $g) {
-                $texto .= "  - " . $g['nombre_grupo'] . ": " . (int) $g['asistieron'] . "/" . (int) $g['total'] . " (" . $g['porcentaje'] . "%)\n";
+        if (!empty($a['por_plan'])) {
+            $texto .= "Asistencia por plan:\n";
+            foreach ($a['por_plan'] as $g) {
+                $texto .= "  - " . $g['nombre_plan'] . ": " . (int) $g['asistieron'] . "/" . (int) $g['total'] . " (" . $g['porcentaje'] . "%)\n";
             }
         }
 
@@ -922,12 +922,12 @@ class IaChat
         $asis = (isset($det['asistencia']['registros']) && is_array($det['asistencia']['registros']))
             ? $det['asistencia']['registros'] : [];
         if (!empty($asis)) {
-            $texto .= "\nDETALLE DE ASISTENCIA POR ESTUDIANTE:\n";
+            $texto .= "\nDETALLE DE ASISTENCIA POR CLIENTE:\n";
             foreach ($asis as $r) {
                 $nombre = isset($r['nombre_completo']) ? trim($r['nombre_completo']) : 'Sin nombre';
-                $grupo = $r['nombre_grupo'] ?? 'Sin grupo';
+                $plan = $r['nombre_plan'] ?? 'Sin plan';
                 $estado = $r['estado'] ?? '';
-                $linea = "- {$nombre} | grupo: {$grupo} | {$estado}";
+                $linea = "- {$nombre} | plan: {$plan} | {$estado}";
                 if (!empty($r['hora_ingreso'])) {
                     $linea .= " | ingreso: " . $r['hora_ingreso'];
                 }
@@ -977,8 +977,8 @@ class IaChat
             foreach ($deudores as $r) {
                 $nombre = isset($r['nombre_persona']) ? trim($r['nombre_persona']) : 'Sin nombre';
                 $tipo = $r['tipo_persona'] ?? '';
-                $grupoCargo = $r['grupo_o_cargo'] ?? '';
-                $texto .= "- {$nombre} ({$tipo}, {$grupoCargo}) | pendiente: " . self::pesos($r['saldo_pendiente'] ?? 0)
+                $planCargo = $r['plan_o_cargo'] ?? '';
+                $texto .= "- {$nombre} ({$tipo}, {$planCargo}) | pendiente: " . self::pesos($r['saldo_pendiente'] ?? 0)
                     . " | vencido: " . self::pesos($r['saldo_vencido'] ?? 0)
                     . " | cuentas: " . (int) ($r['cuentas_pendientes'] ?? 0)
                     . " | días máx. vencido: " . (int) ($r['dias_max_vencido'] ?? 0) . "\n";
@@ -1021,34 +1021,34 @@ class IaChat
     // (Se conservan los métodos; reemplazar por datos reales cuando exista fuente.)
     // =====================================================
 
-    private static function contextoDummyEstPersonal($ids_estudiantes)
+    private static function contextoDummyEstPersonal($ids_clientes)
     {
-        return "\nDATOS PERSONALES DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS PERSONALES DE CLIENTES: sección sin datos disponibles por el momento.\n";
     }
 
-    private static function contextoDummyEstAcademico($ids_estudiantes)
+    private static function contextoDummyEstAcademico($ids_clientes)
     {
-        return "\nDATOS ACADÉMICOS DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS ACADÉMICOS DE CLIENTES: sección sin datos disponibles por el momento.\n";
     }
 
-    private static function contextoDummyEstFinanciero($ids_estudiantes)
+    private static function contextoDummyEstFinanciero($ids_clientes)
     {
-        return "\nDATOS FINANCIEROS DE ESTUDIANTES: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS FINANCIEROS DE CLIENTES: sección sin datos disponibles por el momento.\n";
     }
 
-    private static function contextoDummyGrupoPersonal($ids_estudiantes)
+    private static function contextoDummyPlanPersonal($ids_clientes)
     {
-        return "\nDATOS PERSONALES DEL GRUPO: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS PERSONALES DEL PLAN: sección sin datos disponibles por el momento.\n";
     }
 
-    private static function contextoDummyGrupoAcademico($ids_estudiantes)
+    private static function contextoDummyPlanAcademico($ids_clientes)
     {
-        return "\nDATOS ACADÉMICOS DEL GRUPO: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS ACADÉMICOS DEL PLAN: sección sin datos disponibles por el momento.\n";
     }
 
-    private static function contextoDummyGrupoFinanciero($ids_estudiantes)
+    private static function contextoDummyPlanFinanciero($ids_clientes)
     {
-        return "\nDATOS FINANCIEROS DEL GRUPO: sección sin datos disponibles por el momento.\n";
+        return "\nDATOS FINANCIEROS DEL PLAN: sección sin datos disponibles por el momento.\n";
     }
 
     private static function contextoDummyGlobalOperativo()

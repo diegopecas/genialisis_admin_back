@@ -13,7 +13,7 @@ class IaMensajes
             $db = Flight::db();
 
             // Obtener datos del request
-            $nombreUsuario = Flight::request()->data['nombre_usuario'] ?? 'Estudiante';
+            $nombreUsuario = Flight::request()->data['nombre_usuario'] ?? 'Cliente';
 
             error_log("=== INICIO GENERACIÓN MENSAJE IA ===");
             error_log("Nombre recibido del frontend: " . $nombreUsuario);
@@ -75,7 +75,7 @@ class IaMensajes
         } catch (Exception $e) {
             error_log("EXCEPCIÓN en obtenerMensajePersonalizado: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
-            return self::responderConFallback($nombreUsuario ?? 'Estudiante', 'error_sistema');
+            return self::responderConFallback($nombreUsuario ?? 'Cliente', 'error_sistema');
         }
     }
     /**
@@ -119,7 +119,7 @@ class IaMensajes
             if ($mesHoy === '12' && ($diaHoy === '24' || $diaHoy === '25')) {
                 return [
                     'tipo' => 'navidad',
-                    'prompt' => "Crea un mensaje navideño cálido y especial para un estudiante. Que transmita paz, amor y buenos deseos para esta Navidad. Máximo 30 palabras. Usa emojis navideños 🎄✨. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional."
+                    'prompt' => "Crea un mensaje navideño cálido y especial para un cliente. Que transmita paz, amor y buenos deseos para esta Navidad. Máximo 30 palabras. Usa emojis navideños 🎄✨. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional."
                 ];
             }
 
@@ -127,7 +127,7 @@ class IaMensajes
             if (($mesHoy === '12' && $diaHoy === '31') || ($mesHoy === '01' && $diaHoy === '01')) {
                 return [
                     'tipo' => 'año_nuevo',
-                    'prompt' => "Crea un mensaje inspirador de Año Nuevo para un estudiante. Que motive a establecer metas educativas y personales para este nuevo año. Máximo 30 palabras. Usa emojis de celebración 🎆🎊. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional."
+                    'prompt' => "Crea un mensaje inspirador de Año Nuevo para un cliente. Que motive a establecer metas educativas y personales para este nuevo año. Máximo 30 palabras. Usa emojis de celebración 🎆🎊. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional."
                 ];
             }
 
@@ -163,7 +163,7 @@ class IaMensajes
             }
 
             $prompts = [
-                'dato_curioso' => "Genera un dato curioso científico o histórico fascinante para un estudiante llamado {$nombreUsuario}. Personaliza el mensaje con su nombre. Máximo 30 palabras. Usa emojis relevantes. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional.",
+                'dato_curioso' => "Genera un dato curioso científico o histórico fascinante para un cliente llamado {$nombreUsuario}. Personaliza el mensaje con su nombre. Máximo 30 palabras. Usa emojis relevantes. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional.",
 
                 'noticia_educativa' => "Comparte una noticia educativa o descubrimiento científico reciente interesante para {$nombreUsuario}. Personaliza con su nombre. Máximo 30 palabras. Usa emojis. IMPORTANTE: Responde ÚNICAMENTE con el mensaje entre comillas dobles, sin texto adicional.",
 

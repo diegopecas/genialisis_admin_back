@@ -9,20 +9,20 @@ class TareasColaboradores
             $db = Flight::db();
             $sentence = $db->prepare("
                 SELECT 
-                    tc.id, tc.id_colaborador, tc.id_estudiante, tc.id_tipo_tarea,
+                    tc.id, tc.id_colaborador, tc.id_cliente, tc.id_tipo_tarea,
                     IFNULL(ttt.nombre, '') AS nombre_tipo_tarea,
                     tc.descripcion, tc.fecha_limite, tc.hora_inicio, tc.hora_fin,
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
                     TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,''))) AS nombre_colaborador,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_estudiante
+                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 INNER JOIN colaboradores c ON tc.id_colaborador = c.id
                 INNER JOIN personas pc ON c.id_persona = pc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
-                LEFT JOIN estudiantes e ON tc.id_estudiante = e.id
+                LEFT JOIN clientes e ON tc.id_cliente = e.id
                 LEFT JOIN personas pe ON e.id_persona = pe.id
                 WHERE tc.id_tenant = :id_tenant
                 ORDER BY tc.fecha_registro DESC
@@ -44,17 +44,17 @@ class TareasColaboradores
             $db = Flight::db();
             $sentence = $db->prepare("
                 SELECT 
-                    tc.id, tc.id_colaborador, tc.id_estudiante, tc.id_tipo_tarea,
+                    tc.id, tc.id_colaborador, tc.id_cliente, tc.id_tipo_tarea,
                     IFNULL(ttt.nombre, '') AS nombre_tipo_tarea,
                     tc.descripcion, tc.fecha_limite, tc.hora_inicio, tc.hora_fin,
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_estudiante
+                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
-                LEFT JOIN estudiantes e ON tc.id_estudiante = e.id
+                LEFT JOIN clientes e ON tc.id_cliente = e.id
                 LEFT JOIN personas pe ON e.id_persona = pe.id
                 WHERE tc.id_colaborador = :id_colaborador
                 AND tc.id_tenant = :id_tenant
@@ -86,20 +86,20 @@ class TareasColaboradores
 
             $sentence = $db->prepare("
                 SELECT 
-                    tc.id, tc.id_colaborador, tc.id_estudiante, tc.id_tipo_tarea,
+                    tc.id, tc.id_colaborador, tc.id_cliente, tc.id_tipo_tarea,
                     IFNULL(ttt.nombre, '') AS nombre_tipo_tarea,
                     tc.descripcion, tc.fecha_limite, tc.hora_inicio, tc.hora_fin,
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
                     TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,''))) AS nombre_colaborador,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_estudiante
+                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 INNER JOIN colaboradores c ON tc.id_colaborador = c.id
                 INNER JOIN personas pc ON c.id_persona = pc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
-                LEFT JOIN estudiantes e ON tc.id_estudiante = e.id
+                LEFT JOIN clientes e ON tc.id_cliente = e.id
                 LEFT JOIN personas pe ON e.id_persona = pe.id
                 WHERE tc.fecha_limite IS NOT NULL
                   AND MONTH(tc.fecha_limite) = :mes
@@ -126,17 +126,17 @@ class TareasColaboradores
             $db = Flight::db();
             $sentence = $db->prepare("
                 SELECT 
-                    tc.id, tc.id_colaborador, tc.id_estudiante, tc.id_tipo_tarea,
+                    tc.id, tc.id_colaborador, tc.id_cliente, tc.id_tipo_tarea,
                     IFNULL(ttt.nombre, '') AS nombre_tipo_tarea,
                     tc.descripcion, tc.fecha_limite, tc.hora_inicio, tc.hora_fin,
                     tc.id_estado, etc.nombre AS nombre_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_estudiante
+                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
-                LEFT JOIN estudiantes e ON tc.id_estudiante = e.id
+                LEFT JOIN clientes e ON tc.id_cliente = e.id
                 LEFT JOIN personas pe ON e.id_persona = pe.id
                 WHERE tc.id = :id
                 AND tc.id_tenant = :id_tenant
@@ -160,7 +160,7 @@ class TareasColaboradores
             $data = Flight::request()->data->getData();
 
             $id_estado = isset($data['id_estado']) ? $data['id_estado'] : 1;
-            $id_estudiante = isset($data['id_estudiante']) ? $data['id_estudiante'] : null;
+            $id_cliente = isset($data['id_cliente']) ? $data['id_cliente'] : null;
             $id_tipo_tarea = isset($data['id_tipo_tarea']) ? $data['id_tipo_tarea'] : null;
             $fecha_limite = isset($data['fecha_limite']) ? $data['fecha_limite'] : null;
             $hora_inicio = isset($data['hora_inicio']) ? $data['hora_inicio'] : null;
@@ -172,11 +172,11 @@ class TareasColaboradores
 
             $sentence = $db->prepare("
                 INSERT INTO tareas_colaboradores (
-                    id, id_tenant, id_colaborador, id_estudiante, id_tipo_tarea, descripcion, fecha_limite,
+                    id, id_tenant, id_colaborador, id_cliente, id_tipo_tarea, descripcion, fecha_limite,
                     hora_inicio, hora_fin, id_estado, origen,
                     id_historial_origen, observaciones, id_usuario_registro
                 ) VALUES (
-                    :id, :id_tenant, :id_colaborador, :id_estudiante, :id_tipo_tarea, :descripcion, :fecha_limite,
+                    :id, :id_tenant, :id_colaborador, :id_cliente, :id_tipo_tarea, :descripcion, :fecha_limite,
                     :hora_inicio, :hora_fin, :id_estado, :origen,
                     :id_historial_origen, :observaciones, :id_usuario_registro
                 )
@@ -186,7 +186,7 @@ class TareasColaboradores
             $sentence->bindValue(':id', $id);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_colaborador', $data['id_colaborador']);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
+            $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_tipo_tarea', $id_tipo_tarea);
             $sentence->bindParam(':descripcion', $data['descripcion']);
             $sentence->bindParam(':fecha_limite', $fecha_limite);
@@ -222,10 +222,10 @@ class TareasColaboradores
 
             $sentence = $db->prepare("
                 INSERT INTO tareas_colaboradores (
-                    id, id_tenant, id_colaborador, id_estudiante, id_tipo_tarea, descripcion, fecha_limite,
+                    id, id_tenant, id_colaborador, id_cliente, id_tipo_tarea, descripcion, fecha_limite,
                     hora_inicio, hora_fin, id_estado, origen, observaciones, id_usuario_registro
                 ) VALUES (
-                    :id, :id_tenant, :id_colaborador, :id_estudiante, :id_tipo_tarea, :descripcion, :fecha_limite,
+                    :id, :id_tenant, :id_colaborador, :id_cliente, :id_tipo_tarea, :descripcion, :fecha_limite,
                     :hora_inicio, :hora_fin, 1, 'manual', :observaciones, :id_usuario_registro
                 )
             ");
@@ -234,7 +234,7 @@ class TareasColaboradores
             $count = 0;
 
             foreach ($tareas as $t) {
-                $id_estudiante = isset($t['id_estudiante']) ? $t['id_estudiante'] : null;
+                $id_cliente = isset($t['id_cliente']) ? $t['id_cliente'] : null;
                 $id_tipo_tarea = isset($t['id_tipo_tarea']) ? $t['id_tipo_tarea'] : null;
                 $hora_inicio = isset($t['hora_inicio']) ? $t['hora_inicio'] : null;
                 $hora_fin = isset($t['hora_fin']) ? $t['hora_fin'] : null;
@@ -245,7 +245,7 @@ class TareasColaboradores
                 $sentence->bindValue(':id', $idTarea);
                 $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $sentence->bindParam(':id_colaborador', $t['id_colaborador']);
-                $sentence->bindParam(':id_estudiante', $id_estudiante);
+                $sentence->bindParam(':id_cliente', $id_cliente);
                 $sentence->bindParam(':id_tipo_tarea', $id_tipo_tarea);
                 $sentence->bindParam(':descripcion', $t['descripcion']);
                 $sentence->bindParam(':fecha_limite', $t['fecha_limite']);
@@ -274,7 +274,7 @@ class TareasColaboradores
             $db = Flight::db();
             $data = Flight::request()->data->getData();
 
-            $id_estudiante = isset($data['id_estudiante']) ? $data['id_estudiante'] : null;
+            $id_cliente = isset($data['id_cliente']) ? $data['id_cliente'] : null;
             $id_tipo_tarea = isset($data['id_tipo_tarea']) ? $data['id_tipo_tarea'] : null;
             $fecha_limite = isset($data['fecha_limite']) ? $data['fecha_limite'] : null;
             $hora_inicio = isset($data['hora_inicio']) ? $data['hora_inicio'] : null;
@@ -283,7 +283,7 @@ class TareasColaboradores
 
             $sentence = $db->prepare("
                 UPDATE tareas_colaboradores SET
-                    id_estudiante = :id_estudiante,
+                    id_cliente = :id_cliente,
                     id_tipo_tarea = :id_tipo_tarea,
                     descripcion = :descripcion,
                     fecha_limite = :fecha_limite,
@@ -297,7 +297,7 @@ class TareasColaboradores
 
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id', $data['id']);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
+            $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_tipo_tarea', $id_tipo_tarea);
             $sentence->bindParam(':descripcion', $data['descripcion']);
             $sentence->bindParam(':fecha_limite', $fecha_limite);

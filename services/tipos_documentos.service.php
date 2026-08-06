@@ -7,7 +7,7 @@ class TiposDocumentos
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT id, codigo, nombre, requiere_vencimiento, dias_alerta_vencimiento, 
-                   permite_multiples, descripcion, activo, modificable_acudientes, requiere_firma
+                   permite_multiples, descripcion, activo, modificable_representantes, requiere_firma
             FROM tipos_documentos
             WHERE id_tenant = :id_tenant
             ORDER BY nombre
@@ -31,7 +31,7 @@ class TiposDocumentos
                 td.dias_alerta_vencimiento,
                 td.permite_multiples,
                 td.descripcion,
-                td.modificable_acudientes,
+                td.modificable_representantes,
                 td.requiere_firma,
                 tpd.obligatorio,
                 tpd.orden
@@ -56,7 +56,7 @@ class TiposDocumentos
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT id, codigo, nombre, requiere_vencimiento, dias_alerta_vencimiento,
-                   permite_multiples, descripcion, activo, modificable_acudientes, requiere_firma
+                   permite_multiples, descripcion, activo, modificable_representantes, requiere_firma
             FROM tipos_documentos
             WHERE id = :id
             AND id_tenant = :id_tenant
@@ -81,7 +81,7 @@ class TiposDocumentos
         $dias_alerta_vencimiento = isset($data['dias_alerta_vencimiento']) ? $data['dias_alerta_vencimiento'] : null;
         $permite_multiples = isset($data['permite_multiples']) ? $data['permite_multiples'] : 1;
         $requiere_firma = isset($data['requiere_firma']) ? $data['requiere_firma'] : 0;
-        $modificable_acudientes = isset($data['modificable_acudientes']) ? $data['modificable_acudientes'] : 1;
+        $modificable_representantes = isset($data['modificable_representantes']) ? $data['modificable_representantes'] : 1;
         $activo = isset($data['activo']) ? $data['activo'] : 1;
 
         $id = Uuid::generar();
@@ -89,11 +89,11 @@ class TiposDocumentos
             INSERT INTO tipos_documentos (
                 id, id_tenant, codigo, nombre, descripcion, requiere_vencimiento, 
                 dias_alerta_vencimiento, permite_multiples, requiere_firma, 
-                modificable_acudientes, activo
+                modificable_representantes, activo
             ) VALUES (
                 :id, :id_tenant, :codigo, :nombre, :descripcion, :requiere_vencimiento, 
                 :dias_alerta_vencimiento, :permite_multiples, :requiere_firma, 
-                :modificable_acudientes, :activo
+                :modificable_representantes, :activo
             )
         ");
         $sentence->bindValue(':id', $id);
@@ -105,7 +105,7 @@ class TiposDocumentos
         $sentence->bindParam(':dias_alerta_vencimiento', $dias_alerta_vencimiento);
         $sentence->bindParam(':permite_multiples', $permite_multiples);
         $sentence->bindParam(':requiere_firma', $requiere_firma);
-        $sentence->bindParam(':modificable_acudientes', $modificable_acudientes);
+        $sentence->bindParam(':modificable_representantes', $modificable_representantes);
         $sentence->bindParam(':activo', $activo);
         $sentence->execute();
 
@@ -126,7 +126,7 @@ class TiposDocumentos
         $dias_alerta_vencimiento = isset($data['dias_alerta_vencimiento']) ? $data['dias_alerta_vencimiento'] : null;
         $permite_multiples = isset($data['permite_multiples']) ? $data['permite_multiples'] : 1;
         $requiere_firma = isset($data['requiere_firma']) ? $data['requiere_firma'] : 0;
-        $modificable_acudientes = isset($data['modificable_acudientes']) ? $data['modificable_acudientes'] : 1;
+        $modificable_representantes = isset($data['modificable_representantes']) ? $data['modificable_representantes'] : 1;
         $activo = isset($data['activo']) ? $data['activo'] : 1;
 
         $sentence = $db->prepare("
@@ -138,7 +138,7 @@ class TiposDocumentos
                 dias_alerta_vencimiento = :dias_alerta_vencimiento, 
                 permite_multiples = :permite_multiples, 
                 requiere_firma = :requiere_firma,
-                modificable_acudientes = :modificable_acudientes, 
+                modificable_representantes = :modificable_representantes, 
                 activo = :activo
             WHERE id = :id
             AND id_tenant = :id_tenant
@@ -151,7 +151,7 @@ class TiposDocumentos
         $sentence->bindParam(':dias_alerta_vencimiento', $dias_alerta_vencimiento);
         $sentence->bindParam(':permite_multiples', $permite_multiples);
         $sentence->bindParam(':requiere_firma', $requiere_firma);
-        $sentence->bindParam(':modificable_acudientes', $modificable_acudientes);
+        $sentence->bindParam(':modificable_representantes', $modificable_representantes);
         $sentence->bindParam(':activo', $activo);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();

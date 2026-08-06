@@ -10,8 +10,8 @@ Flight::route('GET /cuentas-por-cobrar', [CuentasPorCobrar::class, 'getAll']);
 Flight::route('GET /cuentas-por-cobrar/persona/@id', [CuentasPorCobrar::class, 'getByPersona']);
 Flight::route('GET /cuentas-por-cobrar/reporte-anual/@anio', [CuentasPorCobrar::class, 'getReporteAnual']);
 Flight::route('GET /cuentas-por-cobrar/reporte-cobros-anual/@anio', [CuentasPorCobrar::class, 'getReporteCobrosAnual']);
-Flight::route('GET /cuentas-por-cobrar/reporte-cartera-estudiantes/@anio', [CuentasPorCobrar::class, 'getReporteCarteraEstudiantes']);
-Flight::route('GET /cuentas-por-cobrar/reporte-cartera-estudiantes/@anio/@idEstudiante', [CuentasPorCobrar::class, 'getReporteCarteraEstudiantes']);
+Flight::route('GET /cuentas-por-cobrar/reporte-cartera-clientes/@anio', [CuentasPorCobrar::class, 'getReporteCarteraClientes']);
+Flight::route('GET /cuentas-por-cobrar/reporte-cartera-clientes/@anio/@idCliente', [CuentasPorCobrar::class, 'getReporteCarteraClientes']);
 Flight::route('GET /cuentas-por-cobrar/@id', [CuentasPorCobrar::class, 'getById']);
 Flight::route('POST /cuentas-por-cobrar', [CuentasPorCobrar::class, 'new']);
 Flight::route('PUT /cuentas-por-cobrar', [CuentasPorCobrar::class, 'replace']);
@@ -48,7 +48,7 @@ Flight::route('POST /pagos-recibidos/analizar-comprobante', [PagosRecibidos::cla
 Flight::route('POST /pagos-recibidos/registrar-masivo', [PagosRecibidos::class, 'registrarMasivo']);
 Flight::route('POST /pagos-recibidos/verificar-duplicado', [PagosRecibidos::class, 'verificarDuplicado']);
 Flight::route('GET /pagos-recibidos/@id', [PagosRecibidos::class, 'getById']);
-Flight::route('GET /pagos-recibidos/estudiante/@id', [PagosRecibidos::class, 'getByEstudiante']);
+Flight::route('GET /pagos-recibidos/cliente/@id', [PagosRecibidos::class, 'getByCliente']);
 Flight::route('GET /pagos-recibidos/comprobante/@id_pago_recibido', [PagosRecibidos::class, 'obtenerDatosComprobante']);
 Flight::route('GET /pagos-recibidos-colaborador/@id', [PagosRecibidos::class, 'getByColaborador']);
 Flight::route('GET /pagos-recibidos-comprobante-colaborador/@id', [PagosRecibidos::class, 'obtenerDatosComprobanteColaborador']);
@@ -72,6 +72,6 @@ Flight::route('DELETE /tipos-pagos', [TiposPagos::class, 'delete']);
 
 // Historial de recordatorios de pago
 Flight::route('GET /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'getAll']);
-Flight::route('GET /historial-recordatorios-pago/estudiante/@id', [HistorialRecordatoriosPago::class, 'getByEstudiante']);
+Flight::route('GET /historial-recordatorios-pago/cliente/@id', [HistorialRecordatoriosPago::class, 'getByCliente']);
 Flight::route('POST /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'new']);
 Flight::route('PUT /historial-recordatorios-pago', [HistorialRecordatoriosPago::class, 'replace']);

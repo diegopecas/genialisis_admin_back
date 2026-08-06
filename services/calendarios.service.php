@@ -109,26 +109,26 @@ class Calendarios
         $stmtEventos->execute();
         $eventos = $stmtEventos->fetchAll();
 
-        // 3. Cumpleaños de estudiantes activos
-        $stmtCumpleEstudiantes = $db->prepare("
+        // 3. Cumpleaños de clientes activos
+        $stmtCumpleClientes = $db->prepare("
             SELECT 
                 p.id AS id_persona,
                 p.primer_nombre,
                 p.primer_apellido,
                 p.fecha_nacimiento,
-                'estudiante' AS tipo_persona,
+                'cliente' AS tipo_persona,
                 NULL AS sobrenombre,
                 NULL AS cargo_nombre_corto
             FROM personas p
-            INNER JOIN estudiantes e ON e.id_persona = p.id AND e.activo = 1
+            INNER JOIN clientes e ON e.id_persona = p.id AND e.activo = 1
             WHERE MONTH(p.fecha_nacimiento) = :mes
             AND e.id_tenant = :id_tenant
             ORDER BY DAY(p.fecha_nacimiento)
         ");
-        $stmtCumpleEstudiantes->bindParam(':mes', $mes, PDO::PARAM_INT);
-        $stmtCumpleEstudiantes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-        $stmtCumpleEstudiantes->execute();
-        $cumpleEstudiantes = $stmtCumpleEstudiantes->fetchAll();
+        $stmtCumpleClientes->bindParam(':mes', $mes, PDO::PARAM_INT);
+        $stmtCumpleClientes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $stmtCumpleClientes->execute();
+        $cumpleClientes = $stmtCumpleClientes->fetchAll();
 
         // 4. Cumpleaños de colaboradores activos (con sobrenombre y cargo)
         $stmtCumpleColaboradores = $db->prepare("
@@ -154,7 +154,7 @@ class Calendarios
 
         // Formatear cumpleaños
         $cumpleanos = [];
-        foreach (array_merge($cumpleEstudiantes, $cumpleColaboradores) as $c) {
+        foreach (array_merge($cumpleClientes, $cumpleColaboradores) as $c) {
             $diaCumple = (int) date('d', strtotime($c['fecha_nacimiento']));
             
             // Para colaboradores: usar sobrenombre si existe, si no primer_nombre

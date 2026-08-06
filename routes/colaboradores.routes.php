@@ -79,7 +79,7 @@ Flight::route('DELETE /tipos-contrato', [TiposContrato::class, 'delete']);
 // CALENDARIO DE COLABORADORES
 Flight::route('GET /actividades-colaboradores-calendario', [ActividadesColaboradores::class, 'getActividadesPorMes']);
 Flight::route('GET /colaboradores-calendario', [ActividadesColaboradores::class, 'getColaboradoresParaCalendario']);
-Flight::route('GET /grupos-calendario', [ActividadesColaboradores::class, 'getGruposParaCalendario']);
+Flight::route('GET /planes-calendario', [ActividadesColaboradores::class, 'getPlanesParaCalendario']);
 
 // HORARIOS COLABORADORES
 Flight::route('GET /horarios-colaboradores/@id_colaborador', [HorariosColaboradores::class, 'getByColaborador']);

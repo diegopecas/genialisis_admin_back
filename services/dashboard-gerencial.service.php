@@ -406,23 +406,23 @@ class DashboardGerencial
                     pr.valor_recibido,
                     pr.referencia_bancaria,
                     pr.observaciones,
-                    pr.id_estudiante,
+                    pr.id_cliente,
                     pr.id_colaborador,
-                    pr.id_acudiente,
+                    pr.id_representante,
                     tp.id AS id_tipo_pago,
                     tp.nombre AS tipo_pago,
                     CASE
-                        WHEN pr.id_estudiante IS NOT NULL THEN 'Estudiante'
+                        WHEN pr.id_cliente IS NOT NULL THEN 'Cliente'
                         WHEN pr.id_colaborador IS NOT NULL THEN 'Colaborador'
-                        WHEN pr.id_acudiente IS NOT NULL THEN 'Acudiente'
+                        WHEN pr.id_representante IS NOT NULL THEN 'Representante'
                         ELSE 'Otro'
                     END AS tipo_persona,
                     TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona
                 FROM pagos_recibidos pr
                 INNER JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id AND tp.es_ingreso = 1
-                LEFT JOIN estudiantes e ON pr.id_estudiante = e.id
+                LEFT JOIN clientes e ON pr.id_cliente = e.id
                 LEFT JOIN colaboradores c ON pr.id_colaborador = c.id
-                LEFT JOIN acudientes a ON pr.id_acudiente = a.id
+                LEFT JOIN representantes a ON pr.id_representante = a.id
                 LEFT JOIN personas p ON p.id = COALESCE(e.id_persona, c.id_persona, a.id_persona)
                 WHERE (pr.anulado = 0 OR pr.anulado IS NULL)
                   AND pr.id_tenant = " . TenantContext::id() . "
@@ -481,7 +481,7 @@ class DashboardGerencial
 
     /**
      * Lista de personas con saldo pendiente. Trae a TODOS (sin limit por defecto).
-     * Incluye estado activo/inactivo del estudiante o colaborador.
+     * Incluye estado activo/inactivo del cliente o colaborador.
      */
     public static function getCarteraDetalle()
     {
@@ -505,21 +505,21 @@ class DashboardGerencial
                     TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona,
                     p.numero_identificacion,
                     CASE
-                        WHEN e.id IS NOT NULL THEN 'Estudiante'
+                        WHEN e.id IS NOT NULL THEN 'Cliente'
                         WHEN col.id IS NOT NULL THEN 'Colaborador'
                         ELSE 'Otro'
                     END AS tipo_persona,
                     CASE
-                        WHEN e.id IS NOT NULL THEN COALESCE(g.nombre, 'Sin grupo')
+                        WHEN e.id IS NOT NULL THEN COALESCE(g.nombre, 'Sin plan')
                         WHEN col.id IS NOT NULL THEN COALESCE(ca.nombre, 'Sin cargo')
                         ELSE 'Sin asignar'
-                    END AS grupo_o_cargo,
+                    END AS plan_o_cargo,
                     CASE
                         WHEN e.id IS NOT NULL THEN COALESCE(e.activo, 0)
                         WHEN col.id IS NOT NULL THEN COALESCE(col.activo, 0)
                         ELSE 0
                     END AS activo,
-                    e.id AS id_estudiante,
+                    e.id AS id_cliente,
                     col.id AS id_colaborador,
                     COUNT(DISTINCT sub.id) AS cuentas_pendientes,
                     SUM(CASE WHEN sub.fecha < CURDATE() THEN 1 ELSE 0 END) AS cuentas_vencidas,
@@ -527,9 +527,9 @@ class DashboardGerencial
                     SUM(CASE WHEN sub.fecha < CURDATE() THEN sub.saldo ELSE 0 END) AS saldo_vencido,
                     MAX(CASE WHEN sub.fecha < CURDATE() THEN DATEDIFF(CURDATE(), sub.fecha) ELSE 0 END) AS dias_max_vencido
                 FROM personas p
-                LEFT JOIN estudiantes e ON e.id_persona = p.id
-                LEFT JOIN estudiantes_x_grupos eg ON eg.id_estudiante = e.id AND eg.activo = 1
-                LEFT JOIN grupos g ON g.id = eg.id_grupo
+                LEFT JOIN clientes e ON e.id_persona = p.id
+                LEFT JOIN clientes_x_planes eg ON eg.id_cliente = e.id AND eg.activo = 1
+                LEFT JOIN planes g ON g.id = eg.id_plan
                 LEFT JOIN colaboradores col ON col.id_persona = p.id
                 LEFT JOIN cargos ca ON ca.id = col.id_cargo
                 INNER JOIN (
@@ -557,34 +557,34 @@ class DashboardGerencial
             $sentence->execute();
             $registros = $sentence->fetchAll(PDO::FETCH_ASSOC);
 
-            // IDs de estudiantes morosos para buscar sus recordatorios
-            $idsEstudiantes = [];
+            // IDs de clientes morosos para buscar sus recordatorios
+            $idsClientes = [];
             foreach ($registros as $r) {
-                if (!empty($r['id_estudiante'])) {
-                    $idsEstudiantes[] = $r['id_estudiante'];
+                if (!empty($r['id_cliente'])) {
+                    $idsClientes[] = $r['id_cliente'];
                 }
             }
 
-            // Mapa: id_estudiante => ultimo recordatorio de pago
+            // Mapa: id_cliente => ultimo recordatorio de pago
             $recordatorios = [];
-            if (count($idsEstudiantes) > 0) {
-                $placeholders = implode(',', array_fill(0, count($idsEstudiantes), '?'));
+            if (count($idsClientes) > 0) {
+                $placeholders = implode(',', array_fill(0, count($idsClientes), '?'));
 
-                // Último recordatorio de pago por estudiante
-                $sqlPago = "SELECT hp.id_estudiante, hp.tipo_recordatorio, hp.compromiso,
+                // Último recordatorio de pago por cliente
+                $sqlPago = "SELECT hp.id_cliente, hp.tipo_recordatorio, hp.compromiso,
                                    hp.fecha_compromiso, hp.fecha_envio
                             FROM historial_recordatorios_pago hp
                             INNER JOIN (
-                                SELECT id_estudiante, MAX(fecha_envio) AS max_fecha
+                                SELECT id_cliente, MAX(fecha_envio) AS max_fecha
                                 FROM historial_recordatorios_pago
-                                WHERE id_estudiante IN ($placeholders)
-                                GROUP BY id_estudiante
-                            ) ult ON hp.id_estudiante = ult.id_estudiante 
+                                WHERE id_cliente IN ($placeholders)
+                                GROUP BY id_cliente
+                            ) ult ON hp.id_cliente = ult.id_cliente 
                                  AND hp.fecha_envio = ult.max_fecha";
                 $stmtP = $db->prepare($sqlPago);
-                $stmtP->execute($idsEstudiantes);
+                $stmtP->execute($idsClientes);
                 foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                    $recordatorios[$row['id_estudiante']] = [
+                    $recordatorios[$row['id_cliente']] = [
                         'origen' => 'pago',
                         'tipo' => $row['tipo_recordatorio'],
                         'compromiso' => $row['compromiso'],
@@ -603,7 +603,7 @@ class DashboardGerencial
                 $r['activo'] = (int)$r['activo'];
 
                 // Adjuntar último recordatorio si existe
-                $idEst = !empty($r['id_estudiante']) ? $r['id_estudiante'] : null;
+                $idEst = !empty($r['id_cliente']) ? $r['id_cliente'] : null;
                 if ($idEst !== null && isset($recordatorios[$idEst])) {
                     $rec = $recordatorios[$idEst];
                     $r['recordatorio'] = [
@@ -629,7 +629,7 @@ class DashboardGerencial
      * Resumen de cartera:
      *   - saldo_pendiente, saldo_vencido (fecha < fecha global), %vencido
      *   - Saldo cartera mes / meses anteriores
-     *   - Saldo por tipo de persona: estudiantes / colaboradores
+     *   - Saldo por tipo de persona: clientes / colaboradores
      *   - Buckets de antigüedad: por vencer, 1-30, 31-60, 61-90, +90 días
      */
     private static function calcularCartera($db, $fecha)
@@ -780,9 +780,9 @@ class DashboardGerencial
         );
 
         // ------- 4) Saldo por tipo de persona (solo del año global) -------
-        $saldoEstudiantes = self::calcularSaldoCarteraBloque(
+        $saldoClientes = self::calcularSaldoCarteraBloque(
             $db,
-            "YEAR(c.fecha) = :anio AND EXISTS (SELECT 1 FROM estudiantes e WHERE e.id_persona = c.id_persona)",
+            "YEAR(c.fecha) = :anio AND EXISTS (SELECT 1 FROM clientes e WHERE e.id_persona = c.id_persona)",
             [':anio' => $anio]
         );
 
@@ -817,7 +817,7 @@ class DashboardGerencial
             'delta_vencido' => $deltaVencido,
             'saldo_mes_actual' => $saldoMesActual,
             'saldo_meses_anteriores' => $saldoMesesAnteriores,
-            'saldo_estudiantes' => $saldoEstudiantes,
+            'saldo_clientes' => $saldoClientes,
             'saldo_colaboradores' => $saldoColaboradores,
             'cuentas_anuladas_mes' => [
                 'cantidad' => (int)$anuladasMes['cantidad'],
@@ -875,7 +875,7 @@ class DashboardGerencial
      *     - recaudado_mes_corriente: pagos del mes aplicados a CPC con fecha >= primer día del mes
      *     - recaudado_mes_anteriores: pagos del mes aplicados a CPC con fecha < primer día del mes
      *   Por tipo de persona:
-     *     - mes_estudiantes / mes_colaboradores
+     *     - mes_clientes / mes_colaboradores
      *
      * Filtros base: pr.anulado=0 AND tp.es_ingreso=1
      */
@@ -994,7 +994,7 @@ class DashboardGerencial
         $stmt->execute();
         $mesAnteriores = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Recaudado mes por tipo de persona: estudiantes
+        // Recaudado mes por tipo de persona: clientes
         $sqlMesEst = "SELECT 
                 COUNT(*) AS cantidad,
                 COALESCE(SUM(pr.valor_recibido), 0) AS total
@@ -1002,12 +1002,12 @@ class DashboardGerencial
             INNER JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id AND tp.es_ingreso = 1
             WHERE (pr.anulado = 0 OR pr.anulado IS NULL) 
               AND YEAR(pr.fecha) = :anio AND MONTH(pr.fecha) = :mes
-              AND pr.id_estudiante IS NOT NULL AND pr.id_tenant = " . TenantContext::id();
+              AND pr.id_cliente IS NOT NULL AND pr.id_tenant = " . TenantContext::id();
         $stmt = $db->prepare($sqlMesEst);
         $stmt->bindParam(':anio', $anio);
         $stmt->bindParam(':mes', $mes);
         $stmt->execute();
-        $mesEstudiantes = $stmt->fetch(PDO::FETCH_ASSOC);
+        $mesClientes = $stmt->fetch(PDO::FETCH_ASSOC);
 
         // Recaudado mes por tipo de persona: colaboradores
         $sqlMesCol = "SELECT 
@@ -1089,9 +1089,9 @@ class DashboardGerencial
             'recaudado_mes_anteriores' => [
                 'total' => (float)$mesAnteriores['total']
             ],
-            'mes_estudiantes' => [
-                'cantidad' => (int)$mesEstudiantes['cantidad'],
-                'total' => (float)$mesEstudiantes['total']
+            'mes_clientes' => [
+                'cantidad' => (int)$mesClientes['cantidad'],
+                'total' => (float)$mesClientes['total']
             ],
             'mes_colaboradores' => [
                 'cantidad' => (int)$mesColaboradores['cantidad'],

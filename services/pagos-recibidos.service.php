@@ -12,15 +12,15 @@ class PagosRecibidos
             SELECT 
                 pr.id, 
                 pr.fecha, 
-                pr.id_estudiante,
+                pr.id_cliente,
                 pr.id_colaborador,
-                pr.id_acudiente, 
-                a.id_estudiante as acudiente_id_estudiante,
+                pr.id_representante, 
+                a.id_cliente as representante_id_cliente,
                 CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_acudiente,
-                ta.nombre AS tipo_acudiente,
+                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                ta.nombre AS tipo_representante,
                 CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                       pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_estudiante,
+                       pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente,
                 CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
                        pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, '')) AS nombre_colaborador,
                 pr.id_tipo_pago, 
@@ -49,13 +49,13 @@ class PagosRecibidos
             FROM 
                 pagos_recibidos pr
             LEFT JOIN 
-                acudientes a ON pr.id_acudiente = a.id
+                representantes a ON pr.id_representante = a.id
             LEFT JOIN 
                 personas p ON a.id_persona = p.id
             LEFT JOIN 
-                tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
+                tipos_representante ta ON a.id_tipo_representante = ta.id
             LEFT JOIN 
-                estudiantes e ON pr.id_estudiante = e.id
+                clientes e ON pr.id_cliente = e.id
             LEFT JOIN 
                 personas pe ON e.id_persona = pe.id
             LEFT JOIN 
@@ -80,8 +80,8 @@ class PagosRecibidos
                 cuenta_pagada cp ON pr.id = cp.id_pago_recibido
             WHERE pr.id_tenant = :id_tenant
             GROUP BY 
-                pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente, 
-                a.id_estudiante, p.primer_nombre, p.segundo_nombre,
+                pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante, 
+                a.id_cliente, p.primer_nombre, p.segundo_nombre,
                 p.primer_apellido, p.segundo_apellido, ta.nombre,
                 pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido,
                 pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido,
@@ -116,9 +116,9 @@ class PagosRecibidos
         SELECT 
             pr.id, 
             pr.fecha, 
-            pr.id_estudiante,
+            pr.id_cliente,
             pr.id_colaborador,
-            pr.id_acudiente, 
+            pr.id_representante, 
             pr.id_tipo_pago, 
             pr.valor_recibido, 
             COALESCE(SUM(cp.valor_aplicado), 0) AS valor_aplicado_cuentas,
@@ -158,7 +158,7 @@ class PagosRecibidos
         WHERE 
             pr.id = :id AND pr.id_tenant = :id_tenant
         GROUP BY 
-            pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente, pr.id_tipo_pago, pr.valor_recibido,
+            pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante, pr.id_tipo_pago, pr.valor_recibido,
             pr.observaciones, pr.referencia_bancaria, pr.fecha_registro,
             pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
             p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
@@ -172,7 +172,7 @@ class PagosRecibidos
         $response = $sentence->fetchAll();
         Flight::json($response);
     }
-    public static function getByEstudiante($idEstudiante)
+    public static function getByCliente($idCliente)
     {
         $userData = JWTService::requerirAutenticacion();
 
@@ -181,11 +181,11 @@ class PagosRecibidos
             SELECT 
                     pr.id, 
                     pr.fecha, 
-                    pr.id_acudiente, 
-                    a.id_estudiante,
+                    pr.id_representante, 
+                    a.id_cliente,
                     CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                           p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_acudiente,
-                    ta.nombre AS tipo_acudiente,
+                           p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                    ta.nombre AS tipo_representante,
                     pr.id_tipo_pago, 
                     tp.nombre AS tipo_pago,
                     pr.valor_recibido, 
@@ -213,11 +213,11 @@ class PagosRecibidos
                 FROM 
                     pagos_recibidos pr
                 LEFT JOIN 
-                    acudientes a ON pr.id_acudiente = a.id
+                    representantes a ON pr.id_representante = a.id
                 LEFT JOIN 
                     personas p ON a.id_persona = p.id
                 LEFT JOIN 
-                    tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
+                    tipos_representante ta ON a.id_tipo_representante = ta.id
                 LEFT JOIN 
                     tipos_pagos tp ON pr.id_tipo_pago = tp.id
                 LEFT JOIN 
@@ -235,9 +235,9 @@ class PagosRecibidos
                 LEFT JOIN 
                     cuenta_pagada cp ON pr.id = cp.id_pago_recibido
                 WHERE 
-                    pr.id_estudiante = :id AND pr.id_tenant = :id_tenant
+                    pr.id_cliente = :id AND pr.id_tenant = :id_tenant
                 GROUP BY 
-                    pr.id, pr.fecha, pr.id_acudiente, a.id_estudiante, p.primer_nombre, p.segundo_nombre,
+                    pr.id, pr.fecha, pr.id_representante, a.id_cliente, p.primer_nombre, p.segundo_nombre,
                     p.primer_apellido, p.segundo_apellido, ta.nombre, pr.id_tipo_pago, tp.nombre,
                     pr.valor_recibido, pr.observaciones, pr.referencia_bancaria, 
                     pr.fecha_registro, pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
@@ -248,7 +248,7 @@ class PagosRecibidos
                 order by pr.fecha desc, pr.id desc
         ");
 
-        $sentence->bindParam(':id', $idEstudiante);
+        $sentence->bindParam(':id', $idCliente);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
@@ -264,7 +264,7 @@ class PagosRecibidos
             pr.id, 
             pr.fecha, 
             pr.id_colaborador,
-            pr.id_acudiente, 
+            pr.id_representante, 
             CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
                    pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, '')) AS nombre_colaborador,
             pr.id_tipo_pago, 
@@ -315,7 +315,7 @@ class PagosRecibidos
         WHERE 
             pr.id_colaborador = :id AND pr.id_tenant = :id_tenant
         GROUP BY 
-            pr.id, pr.fecha, pr.id_colaborador, pr.id_acudiente, pc.primer_nombre, pc.segundo_nombre,
+            pr.id, pr.fecha, pr.id_colaborador, pr.id_representante, pc.primer_nombre, pc.segundo_nombre,
             pc.primer_apellido, pc.segundo_apellido, pr.id_tipo_pago, tp.nombre,
             pr.valor_recibido, pr.observaciones, pr.referencia_bancaria, 
             pr.fecha_registro, pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
@@ -341,9 +341,9 @@ class PagosRecibidos
 
             // Capturar datos de la solicitud
             $fecha = Flight::request()->data['fecha'];
-            $id_estudiante = isset(Flight::request()->data['id_estudiante']) ? Flight::request()->data['id_estudiante'] : null;
+            $id_cliente = isset(Flight::request()->data['id_cliente']) ? Flight::request()->data['id_cliente'] : null;
             $id_colaborador = isset(Flight::request()->data['id_colaborador']) ? Flight::request()->data['id_colaborador'] : null;
-            $id_acudiente = Flight::request()->data['id_acudiente'];
+            $id_representante = Flight::request()->data['id_representante'];
             $id_tipo_pago = Flight::request()->data['id_tipo_pago'];
             $valor_recibido = Flight::request()->data['valor_recibido'];
             $observaciones = Flight::request()->data['observaciones'];
@@ -356,14 +356,14 @@ class PagosRecibidos
             $id_documento_persona = isset(Flight::request()->data['id_documento_persona']) ? Flight::request()->data['id_documento_persona'] : null;
 
             // Validar que solo uno de los dos esté presente
-            if (($id_estudiante !== null && $id_colaborador !== null) ||
-                ($id_estudiante === null && $id_colaborador === null)
+            if (($id_cliente !== null && $id_colaborador !== null) ||
+                ($id_cliente === null && $id_colaborador === null)
             ) {
-                throw new Exception('Debe especificar id_estudiante o id_colaborador, pero no ambos');
+                throw new Exception('Debe especificar id_cliente o id_colaborador, pero no ambos');
             }
 
-            $query = "INSERT INTO pagos_recibidos(id, id_tenant, fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, valor_recibido, observaciones, referencia_bancaria, fecha_registro, id_usuario_registro, fecha_contabilizacion, id_usuario_contable, id_documento_persona) 
-                 VALUES (:id, :id_tenant, :fecha, :id_estudiante, :id_colaborador, :id_acudiente, :id_tipo_pago, :valor_recibido, :observaciones, :referencia_bancaria, :fecha_registro, :id_usuario_registro, :fecha_contabilizacion, :id_usuario_contable, :id_documento_persona)";
+            $query = "INSERT INTO pagos_recibidos(id, id_tenant, fecha, id_cliente, id_colaborador, id_representante, id_tipo_pago, valor_recibido, observaciones, referencia_bancaria, fecha_registro, id_usuario_registro, fecha_contabilizacion, id_usuario_contable, id_documento_persona) 
+                 VALUES (:id, :id_tenant, :fecha, :id_cliente, :id_colaborador, :id_representante, :id_tipo_pago, :valor_recibido, :observaciones, :referencia_bancaria, :fecha_registro, :id_usuario_registro, :fecha_contabilizacion, :id_usuario_contable, :id_documento_persona)";
 
             $sentence = $db->prepare($query);
 
@@ -372,9 +372,9 @@ class PagosRecibidos
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             // Vincular parámetros
             $sentence->bindParam(':fecha', $fecha);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
+            $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_colaborador', $id_colaborador);
-            $sentence->bindParam(':id_acudiente', $id_acudiente);
+            $sentence->bindParam(':id_representante', $id_representante);
             $sentence->bindParam(':id_tipo_pago', $id_tipo_pago);
             $sentence->bindParam(':valor_recibido', $valor_recibido);
             $sentence->bindParam(':observaciones', $observaciones);
@@ -405,9 +405,9 @@ class PagosRecibidos
             $db = Flight::db();
             $id = Flight::request()->data['id'];
             $fecha = Flight::request()->data['fecha'];
-            $id_estudiante = isset(Flight::request()->data['id_estudiante']) ? Flight::request()->data['id_estudiante'] : null;
+            $id_cliente = isset(Flight::request()->data['id_cliente']) ? Flight::request()->data['id_cliente'] : null;
             $id_colaborador = isset(Flight::request()->data['id_colaborador']) ? Flight::request()->data['id_colaborador'] : null;
-            $id_acudiente = Flight::request()->data['id_acudiente'];
+            $id_representante = Flight::request()->data['id_representante'];
             $id_tipo_pago = Flight::request()->data['id_tipo_pago'];
             $valor_recibido = Flight::request()->data['valor_recibido'];
             $observaciones = Flight::request()->data['observaciones'];
@@ -418,19 +418,19 @@ class PagosRecibidos
             $id_usuario_contable = Flight::request()->data['id_usuario_contable'];
 
             // Validar que solo uno de los dos esté presente
-            if (($id_estudiante !== null && $id_colaborador !== null) ||
-                ($id_estudiante === null && $id_colaborador === null)
+            if (($id_cliente !== null && $id_colaborador !== null) ||
+                ($id_cliente === null && $id_colaborador === null)
             ) {
-                throw new Exception('Debe especificar id_estudiante o id_colaborador, pero no ambos');
+                throw new Exception('Debe especificar id_cliente o id_colaborador, pero no ambos');
             }
 
-            $sentence = $db->prepare("UPDATE pagos_recibidos SET fecha = :fecha, id_estudiante = :id_estudiante, id_colaborador = :id_colaborador, id_acudiente = :id_acudiente, id_tipo_pago = :id_tipo_pago, valor_recibido = :valor_recibido, observaciones = :observaciones, referencia_bancaria = :referencia_bancaria, fecha_registro = :fecha_registro, id_usuario_registro = :id_usuario_registro, fecha_contabilizacion = :fecha_contabilizacion, id_usuario_contable = :id_usuario_contable WHERE id = :id AND id_tenant = :id_tenant");
+            $sentence = $db->prepare("UPDATE pagos_recibidos SET fecha = :fecha, id_cliente = :id_cliente, id_colaborador = :id_colaborador, id_representante = :id_representante, id_tipo_pago = :id_tipo_pago, valor_recibido = :valor_recibido, observaciones = :observaciones, referencia_bancaria = :referencia_bancaria, fecha_registro = :fecha_registro, id_usuario_registro = :id_usuario_registro, fecha_contabilizacion = :fecha_contabilizacion, id_usuario_contable = :id_usuario_contable WHERE id = :id AND id_tenant = :id_tenant");
 
             $sentence->bindParam(':id', $id);
             $sentence->bindParam(':fecha', $fecha);
-            $sentence->bindParam(':id_estudiante', $id_estudiante);
+            $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_colaborador', $id_colaborador);
-            $sentence->bindParam(':id_acudiente', $id_acudiente);
+            $sentence->bindParam(':id_representante', $id_representante);
             $sentence->bindParam(':id_tipo_pago', $id_tipo_pago);
             $sentence->bindParam(':valor_recibido', $valor_recibido);
             $sentence->bindParam(':observaciones', $observaciones);
@@ -572,8 +572,8 @@ class PagosRecibidos
             SELECT 
                 pr.id, 
                 pr.fecha, 
-                pr.id_estudiante,
-                pr.id_acudiente, 
+                pr.id_cliente,
+                pr.id_representante, 
                 pr.id_tipo_pago, 
                 pr.valor_recibido, 
                 pr.observaciones, 
@@ -615,8 +615,8 @@ class PagosRecibidos
             return Flight::json(['error' => true, 'message' => 'Pago no encontrado'], 404);
         }
 
-        // 2. Obtener los datos del estudiante
-        $sentenceEstudiante = $db->prepare("
+        // 2. Obtener los datos del cliente
+        $sentenceCliente = $db->prepare("
             SELECT 
                 e.id,
                 CONCAT(p.primer_nombre, ' ', 
@@ -624,23 +624,23 @@ class PagosRecibidos
                     p.primer_apellido, ' ', 
                     COALESCE(p.segundo_apellido, '')) AS nombre,
                 p.numero_identificacion AS documento,
-                COALESCE((SELECT g.nombre FROM grupos g 
-                          JOIN estudiantes_x_grupos exg ON g.id = exg.id_grupo 
-                          WHERE exg.id_estudiante = e.id AND exg.activo = 1 
-                          ORDER BY exg.anio DESC LIMIT 1), 'Sin grupo asignado') AS grado
+                COALESCE((SELECT g.nombre FROM planes g 
+                          JOIN clientes_x_planes exg ON g.id = exg.id_plan 
+                          WHERE exg.id_cliente = e.id AND exg.activo = 1 
+                          ORDER BY exg.anio DESC LIMIT 1), 'Sin plan asignado') AS grado
             FROM 
-                estudiantes e
+                clientes e
             JOIN 
                 personas p ON e.id_persona = p.id
             WHERE 
-                e.id = :id_estudiante
+                e.id = :id_cliente
         ");
-        $sentenceEstudiante->bindParam(':id_estudiante', $pago['id_estudiante']);
-        $sentenceEstudiante->execute();
-        $estudiante = $sentenceEstudiante->fetch(PDO::FETCH_ASSOC);
+        $sentenceCliente->bindParam(':id_cliente', $pago['id_cliente']);
+        $sentenceCliente->execute();
+        $cliente = $sentenceCliente->fetch(PDO::FETCH_ASSOC);
 
-        // 3. Obtener los datos del acudiente (Corregido el nombre de la tabla a tipos_acudiente)
-        $sentenceAcudiente = $db->prepare("
+        // 3. Obtener los datos del representante (Corregido el nombre de la tabla a tipos_representante)
+        $sentenceRepresentante = $db->prepare("
             SELECT 
                 a.id,
                 CONCAT(p.primer_nombre, ' ', 
@@ -648,19 +648,19 @@ class PagosRecibidos
                     p.primer_apellido, ' ', 
                     COALESCE(p.segundo_apellido, '')) AS nombre,
                 p.numero_identificacion AS documento,
-                ta.nombre AS tipo_acudiente
+                ta.nombre AS tipo_representante
             FROM 
-                acudientes a
+                representantes a
             JOIN 
                 personas p ON a.id_persona = p.id
             LEFT JOIN
-                tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
+                tipos_representante ta ON a.id_tipo_representante = ta.id
             WHERE 
-                a.id = :id_acudiente
+                a.id = :id_representante
         ");
-        $sentenceAcudiente->bindParam(':id_acudiente', $pago['id_acudiente']);
-        $sentenceAcudiente->execute();
-        $acudiente = $sentenceAcudiente->fetch(PDO::FETCH_ASSOC);
+        $sentenceRepresentante->bindParam(':id_representante', $pago['id_representante']);
+        $sentenceRepresentante->execute();
+        $representante = $sentenceRepresentante->fetch(PDO::FETCH_ASSOC);
 
         // 4. Obtener las cuentas aplicadas con este pago
         $sentenceCuentas = $db->prepare("
@@ -720,8 +720,8 @@ class PagosRecibidos
         // Construir la respuesta completa
         $respuesta = [
             'pago' => $pago,
-            'estudiante' => $estudiante,
-            'acudiente' => $acudiente,
+            'cliente' => $cliente,
+            'representante' => $representante,
             'tipoPago' => $tipoPago
         ];
 
@@ -886,24 +886,24 @@ class PagosRecibidos
             SELECT 
                 pr.id, 
                 pr.fecha, 
-                pr.id_estudiante,
+                pr.id_cliente,
                 pr.id_colaborador,
-                pr.id_acudiente, 
-                -- Nombre del estudiante (si es pago de estudiante)
+                pr.id_representante, 
+                -- Nombre del cliente (si es pago de cliente)
                 CONCAT(p_est.primer_nombre, ' ', COALESCE(p_est.segundo_nombre, ''), ' ', 
-                       p_est.primer_apellido, ' ', COALESCE(p_est.segundo_apellido, '')) AS nombre_estudiante,
+                       p_est.primer_apellido, ' ', COALESCE(p_est.segundo_apellido, '')) AS nombre_cliente,
                 -- Nombre del colaborador (si es pago de colaborador)
                 CONCAT(p_col.primer_nombre, ' ', COALESCE(p_col.segundo_nombre, ''), ' ', 
                        p_col.primer_apellido, ' ', COALESCE(p_col.segundo_apellido, '')) AS nombre_colaborador,
-                -- Tipo de persona (para identificar si es estudiante o colaborador)
+                -- Tipo de persona (para identificar si es cliente o colaborador)
                 CASE 
-                    WHEN pr.id_estudiante IS NOT NULL THEN 'Estudiante'
+                    WHEN pr.id_cliente IS NOT NULL THEN 'Cliente'
                     WHEN pr.id_colaborador IS NOT NULL THEN 'Colaborador'
                     ELSE 'Desconocido'
                 END AS tipo_persona,
                 CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_acudiente,
-                ta.nombre AS tipo_acudiente,
+                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                ta.nombre AS tipo_representante,
                 pr.id_tipo_pago, 
                 tp.nombre AS tipo_pago,
                 pr.valor_recibido, 
@@ -918,9 +918,9 @@ class PagosRecibidos
                        p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro
             FROM 
                 pagos_recibidos pr
-            -- Join para estudiantes
+            -- Join para clientes
             LEFT JOIN 
-                estudiantes e ON pr.id_estudiante = e.id
+                clientes e ON pr.id_cliente = e.id
             LEFT JOIN 
                 personas p_est ON e.id_persona = p_est.id
             -- Join para colaboradores
@@ -928,13 +928,13 @@ class PagosRecibidos
                 colaboradores col ON pr.id_colaborador = col.id
             LEFT JOIN 
                 personas p_col ON col.id_persona = p_col.id
-            -- Join para acudientes
+            -- Join para representantes
             LEFT JOIN 
-                acudientes a ON pr.id_acudiente = a.id
+                representantes a ON pr.id_representante = a.id
             LEFT JOIN 
                 personas p ON a.id_persona = p.id
             LEFT JOIN 
-                tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
+                tipos_representante ta ON a.id_tipo_representante = ta.id
             -- Otros joins
             LEFT JOIN 
                 tipos_pagos tp ON pr.id_tipo_pago = tp.id
@@ -949,7 +949,7 @@ class PagosRecibidos
                 AND pr.anulado != 1
                 AND pr.id_tenant = :id_tenant
             GROUP BY 
-                pr.id, pr.fecha, pr.id_estudiante, pr.id_colaborador, pr.id_acudiente,
+                pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante,
                 p_est.primer_nombre, p_est.segundo_nombre, p_est.primer_apellido, p_est.segundo_apellido,
                 p_col.primer_nombre, p_col.segundo_nombre, p_col.primer_apellido, p_col.segundo_apellido,
                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
@@ -1069,9 +1069,9 @@ class PagosRecibidos
      * GET /pagos-recibidos/datos-registro-rapido
      * 
      * Retorna:
-     * - estudiantes: activos con cuentas por cobrar pendientes
-     * - cuentas_por_cobrar: detalle de cada cuenta pendiente por estudiante (para distribución FIFO)
-     * - acudientes: responsables de pago
+     * - clientes: activos con cuentas por cobrar pendientes
+     * - cuentas_por_cobrar: detalle de cada cuenta pendiente por cliente (para distribución FIFO)
+     * - representantes: responsables de pago
      * - tipos_pagos: con campo requiere_documento
      */
     public static function getDatosRegistroRapido()
@@ -1081,39 +1081,39 @@ class PagosRecibidos
         try {
             $db = Flight::db();
 
-            // 1. Estudiantes activos que tienen al menos una cuenta por cobrar con saldo > 0
-            $stmtEstudiantes = $db->prepare("
+            // 1. Clientes activos que tienen al menos una cuenta por cobrar con saldo > 0
+            $stmtClientes = $db->prepare("
                 SELECT DISTINCT
-                    e.id AS id_estudiante,
+                    e.id AS id_cliente,
                     e.id_persona,
                     CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_estudiante,
+                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_cliente,
                     p.numero_identificacion,
-                    IFNULL(g.nombre, 'Sin grupo') AS grupo_estudiante
-                FROM estudiantes e
+                    IFNULL(g.nombre, 'Sin plan') AS plan_cliente
+                FROM clientes e
                 INNER JOIN personas p ON e.id_persona = p.id
-                LEFT JOIN estudiantes_x_grupos eg ON e.id = eg.id_estudiante AND eg.activo = 1
-                LEFT JOIN grupos g ON eg.id_grupo = g.id
+                LEFT JOIN clientes_x_planes eg ON e.id = eg.id_cliente AND eg.activo = 1
+                LEFT JOIN planes g ON eg.id_plan = g.id
                 WHERE e.activo = 1
                 AND e.id_tenant = :id_tenant
                 ORDER BY g.nombre, p.primer_nombre, p.primer_apellido
             ");
-            $stmtEstudiantes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $stmtEstudiantes->execute();
-            $estudiantes = $stmtEstudiantes->fetchAll(PDO::FETCH_ASSOC);
+            $stmtClientes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $stmtClientes->execute();
+            $clientes = $stmtClientes->fetchAll(PDO::FETCH_ASSOC);
 
             // Limpiar espacios múltiples en nombres
-            foreach ($estudiantes as &$est) {
-                $est['nombre_estudiante'] = trim(preg_replace('/\s+/', ' ', $est['nombre_estudiante']));
+            foreach ($clientes as &$est) {
+                $est['nombre_cliente'] = trim(preg_replace('/\s+/', ' ', $est['nombre_cliente']));
             }
 
-            // 2. Cuentas por cobrar pendientes (saldo > 0) de todos los estudiantes activos
+            // 2. Cuentas por cobrar pendientes (saldo > 0) de todos los clientes activos
             //    El saldo se calcula como: valor - SUM(valor_aplicado en cuenta_pagada)
             $stmtCuentas = $db->prepare("
                 SELECT 
                     c.id,
                     c.id_persona,
-                    e.id AS id_estudiante,
+                    e.id AS id_cliente,
                     c.fecha,
                     c.valor,
                     c.detalle,
@@ -1121,7 +1121,7 @@ class PagosRecibidos
                     COALESCE(SUM(cp.valor_aplicado), 0) AS total_pagado,
                     (c.valor - COALESCE(SUM(cp.valor_aplicado), 0)) AS saldo
                 FROM cuentas_por_cobrar c
-                INNER JOIN estudiantes e ON e.id_persona = c.id_persona AND e.activo = 1
+                INNER JOIN clientes e ON e.id_persona = c.id_persona AND e.activo = 1
                 LEFT JOIN productos_servicios ps ON ps.id = c.id_producto_servicio
                 LEFT JOIN cuenta_pagada cp ON cp.id_cuenta_por_cobrar = c.id
                     LEFT JOIN pagos_recibidos pr_cp ON cp.id_pago_recibido = pr_cp.id 
@@ -1136,31 +1136,31 @@ class PagosRecibidos
             $stmtCuentas->execute();
             $cuentas = $stmtCuentas->fetchAll(PDO::FETCH_ASSOC);
 
-            // 3. Acudientes responsables de pago
-            $stmtAcudientes = $db->prepare("
+            // 3. Representantes responsables de pago
+            $stmtRepresentantes = $db->prepare("
                 SELECT 
-                    a.id AS id_acudiente,
-                    a.id_estudiante,
-                    a.id_persona AS id_persona_acudiente,
+                    a.id AS id_representante,
+                    a.id_cliente,
+                    a.id_persona AS id_persona_representante,
                     CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ',
-                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_acudiente,
-                    ta.nombre AS tipo_acudiente,
+                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_representante,
+                    ta.nombre AS tipo_representante,
                     p.telefono,
                     p.correo_electronico
-                FROM acudientes a
+                FROM representantes a
                 INNER JOIN personas p ON a.id_persona = p.id
-                INNER JOIN tipos_acudiente ta ON a.id_tipo_acudiente = ta.id
+                INNER JOIN tipos_representante ta ON a.id_tipo_representante = ta.id
                 WHERE a.activo = 1
                   AND a.es_responsable_pago = 1
                   AND a.id_tenant = :id_tenant
-                ORDER BY a.id_estudiante, ta.nombre
+                ORDER BY a.id_cliente, ta.nombre
             ");
-            $stmtAcudientes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $stmtAcudientes->execute();
-            $acudientes = $stmtAcudientes->fetchAll(PDO::FETCH_ASSOC);
+            $stmtRepresentantes->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+            $stmtRepresentantes->execute();
+            $representantes = $stmtRepresentantes->fetchAll(PDO::FETCH_ASSOC);
 
-            foreach ($acudientes as &$acud) {
-                $acud['nombre_acudiente'] = trim(preg_replace('/\s+/', ' ', $acud['nombre_acudiente']));
+            foreach ($representantes as &$acud) {
+                $acud['nombre_representante'] = trim(preg_replace('/\s+/', ' ', $acud['nombre_representante']));
             }
 
             // 4. Tipos de pago con requiere_documento
@@ -1170,9 +1170,9 @@ class PagosRecibidos
             $tiposPago = $stmtTiposPago->fetchAll(PDO::FETCH_ASSOC);
 
             Flight::json(array(
-                'estudiantes' => $estudiantes,
+                'clientes' => $clientes,
                 'cuentas_por_cobrar' => $cuentas,
-                'acudientes' => $acudientes,
+                'representantes' => $representantes,
                 'tipos_pagos' => $tiposPago
             ));
         } catch (Exception $e) {
@@ -1380,7 +1380,7 @@ class PagosRecibidos
      * Body (JSON): {
      *   pagos: [
      *     {
-     *       id_estudiante, id_acudiente, id_tipo_pago, fecha,
+     *       id_cliente, id_representante, id_tipo_pago, fecha,
      *       referencia_bancaria, valor_recibido, observaciones,
      *       valor_comprobante, id_documento_persona,
      *       cuentas_aplicadas: [
@@ -1451,12 +1451,12 @@ class PagosRecibidos
 
                 $stmtPago = $db->prepare("
                     INSERT INTO pagos_recibidos 
-                    (id, id_tenant, fecha, id_estudiante, id_colaborador, id_acudiente, id_tipo_pago, 
+                    (id, id_tenant, fecha, id_cliente, id_colaborador, id_representante, id_tipo_pago, 
                      valor_recibido, observaciones, referencia_bancaria, 
                      fecha_registro, id_usuario_registro, 
                      fecha_contabilizacion, id_usuario_contable, id_documento_persona) 
                     VALUES 
-                    (:id, :id_tenant, :fecha, :id_estudiante, NULL, :id_acudiente, :id_tipo_pago, 
+                    (:id, :id_tenant, :fecha, :id_cliente, NULL, :id_representante, :id_tipo_pago, 
                      :valor_recibido, :observaciones, :referencia_bancaria, 
                      :fecha_registro, :id_usuario_registro, 
                      NULL, NULL, :id_documento_persona)
@@ -1471,7 +1471,7 @@ class PagosRecibidos
 
                 // Cargar reportes de pago pendientes UNA sola vez para asociar automáticamente
                 $stmtReportesPendientes = $db->prepare("
-                    SELECT id, id_estudiante, id_tipo_pago, valor 
+                    SELECT id, id_cliente, id_tipo_pago, valor 
                     FROM reportes_pago 
                     WHERE estado = 'pendiente' 
                     AND id_tenant = :id_tenant
@@ -1491,7 +1491,7 @@ class PagosRecibidos
 
                 foreach ($pagos as $index => $pago) {
                     // Validar campos obligatorios
-                    if (empty($pago['id_estudiante']) || empty($pago['id_tipo_pago']) ||
+                    if (empty($pago['id_cliente']) || empty($pago['id_tipo_pago']) ||
                         empty($pago['fecha']) || empty($pago['valor_recibido']) || $pago['valor_recibido'] <= 0) {
                         $errores[] = array(
                             'index' => $index,
@@ -1500,7 +1500,7 @@ class PagosRecibidos
                         continue;
                     }
 
-                    $id_acudiente = !empty($pago['id_acudiente']) ? $pago['id_acudiente'] : null;
+                    $id_representante = !empty($pago['id_representante']) ? $pago['id_representante'] : null;
                     $observaciones = !empty($pago['observaciones']) ? $pago['observaciones'] : 'Registro rápido de pago';
                     $referencia_bancaria = !empty($pago['referencia_bancaria']) ? $pago['referencia_bancaria'] : '';
                     $id_documento_persona = !empty($pago['id_documento_persona']) ? $pago['id_documento_persona'] : null;
@@ -1509,8 +1509,8 @@ class PagosRecibidos
                     $stmtPago->bindValue(':id', $idPagoNew);
                     $stmtPago->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                     $stmtPago->bindParam(':fecha', $pago['fecha']);
-                    $stmtPago->bindParam(':id_estudiante', $pago['id_estudiante']);
-                    $stmtPago->bindParam(':id_acudiente', $id_acudiente);
+                    $stmtPago->bindParam(':id_cliente', $pago['id_cliente']);
+                    $stmtPago->bindParam(':id_representante', $id_representante);
                     $stmtPago->bindParam(':id_tipo_pago', $pago['id_tipo_pago']);
                     $stmtPago->bindParam(':valor_recibido', $pago['valor_recibido']);
                     $stmtPago->bindParam(':observaciones', $observaciones);
@@ -1546,7 +1546,7 @@ class PagosRecibidos
                         $reporteAsociado = null;
                         try {
                             foreach ($reportesPendientes as $keyReporte => $reporte) {
-                                if ($reporte['id_estudiante'] == $pago['id_estudiante'] 
+                                if ($reporte['id_cliente'] == $pago['id_cliente'] 
                                     && $reporte['id_tipo_pago'] == $pago['id_tipo_pago'] 
                                     && intval($reporte['valor']) == intval($pago['valor_recibido'])) {
                                     
@@ -1566,7 +1566,7 @@ class PagosRecibidos
                         $pagosRegistrados[] = array(
                             'index' => $index,
                             'id_pago' => $idPago,
-                            'id_estudiante' => $pago['id_estudiante'],
+                            'id_cliente' => $pago['id_cliente'],
                             'valor' => $pago['valor_recibido'],
                             'cuentas_aplicadas' => $cuentasInsertadas,
                             'reporte_asociado' => $reporteAsociado
@@ -1617,15 +1617,15 @@ class PagosRecibidos
      * POST /pagos-recibidos/verificar-duplicado
      *
      * Body (JSON): {
-     *   id_estudiante, id_tipo_pago, valor_recibido, fecha,   // para posible_duplicado
+     *   id_cliente, id_tipo_pago, valor_recibido, fecha,   // para posible_duplicado
      *   referencia_bancaria                                   // para referencia_existente
      *   id_pago_excluir (opcional)  // id a excluir (útil al editar, para no compararse consigo mismo)
      * }
      *
      * Respuesta: {
-     *   referencia_existente: [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_estudiante}, ... ],
+     *   referencia_existente: [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_cliente}, ... ],
      *   total_referencia:     suma de valor_recibido de referencia_existente,
-     *   posible_duplicado:    [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_estudiante}, ... ]
+     *   posible_duplicado:    [ {id, fecha, valor_recibido, id_tipo_pago, tipo_pago, nombre_cliente}, ... ]
      * }
      *
      * Nota: ambos listados excluyen pagos anulados y filtran por tenant.
@@ -1637,7 +1637,7 @@ class PagosRecibidos
         try {
             $db = Flight::db();
 
-            $id_estudiante = isset(Flight::request()->data['id_estudiante']) ? Flight::request()->data['id_estudiante'] : null;
+            $id_cliente = isset(Flight::request()->data['id_cliente']) ? Flight::request()->data['id_cliente'] : null;
             $id_tipo_pago = isset(Flight::request()->data['id_tipo_pago']) ? Flight::request()->data['id_tipo_pago'] : null;
             $valor_recibido = isset(Flight::request()->data['valor_recibido']) ? Flight::request()->data['valor_recibido'] : null;
             $fecha = isset(Flight::request()->data['fecha']) ? Flight::request()->data['fecha'] : null;
@@ -1660,9 +1660,9 @@ class PagosRecibidos
                         tp.nombre AS tipo_pago,
                         pr.referencia_bancaria,
                         CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_estudiante
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente
                     FROM pagos_recibidos pr
-                    LEFT JOIN estudiantes e ON pr.id_estudiante = e.id
+                    LEFT JOIN clientes e ON pr.id_cliente = e.id
                     LEFT JOIN personas pe ON e.id_persona = pe.id
                     LEFT JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id
                     WHERE pr.referencia_bancaria = :referencia_bancaria
@@ -1684,14 +1684,14 @@ class PagosRecibidos
                 $referenciaExistente = $stmtRef->fetchAll(PDO::FETCH_ASSOC);
 
                 foreach ($referenciaExistente as &$row) {
-                    $row['nombre_estudiante'] = trim(preg_replace('/\s+/', ' ', $row['nombre_estudiante']));
+                    $row['nombre_cliente'] = trim(preg_replace('/\s+/', ' ', $row['nombre_cliente']));
                 }
                 unset($row);
             }
 
-            // Chequeo 2: posible pago duplicado (mismo estudiante + tipo + valor + fecha).
+            // Chequeo 2: posible pago duplicado (mismo cliente + tipo + valor + fecha).
             //            Solo aplica si llegan los cuatro datos.
-            if ($id_estudiante !== null && $id_tipo_pago !== null && $valor_recibido !== null && $fecha !== null) {
+            if ($id_cliente !== null && $id_tipo_pago !== null && $valor_recibido !== null && $fecha !== null) {
                 $sqlDup = "
                     SELECT 
                         pr.id, 
@@ -1701,12 +1701,12 @@ class PagosRecibidos
                         tp.nombre AS tipo_pago,
                         pr.referencia_bancaria,
                         CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_estudiante
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente
                     FROM pagos_recibidos pr
-                    LEFT JOIN estudiantes e ON pr.id_estudiante = e.id
+                    LEFT JOIN clientes e ON pr.id_cliente = e.id
                     LEFT JOIN personas pe ON e.id_persona = pe.id
                     LEFT JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id
-                    WHERE pr.id_estudiante = :id_estudiante
+                    WHERE pr.id_cliente = :id_cliente
                       AND pr.id_tipo_pago = :id_tipo_pago
                       AND pr.valor_recibido = :valor_recibido
                       AND DATE(pr.fecha) = DATE(:fecha)
@@ -1719,7 +1719,7 @@ class PagosRecibidos
                 $sqlDup .= " ORDER BY pr.fecha_registro DESC";
 
                 $stmtDup = $db->prepare($sqlDup);
-                $stmtDup->bindParam(':id_estudiante', $id_estudiante);
+                $stmtDup->bindParam(':id_cliente', $id_cliente);
                 $stmtDup->bindParam(':id_tipo_pago', $id_tipo_pago);
                 $stmtDup->bindParam(':valor_recibido', $valor_recibido);
                 $stmtDup->bindParam(':fecha', $fecha);
@@ -1731,14 +1731,14 @@ class PagosRecibidos
                 $posibleDuplicado = $stmtDup->fetchAll(PDO::FETCH_ASSOC);
 
                 foreach ($posibleDuplicado as &$rowD) {
-                    $rowD['nombre_estudiante'] = trim(preg_replace('/\s+/', ' ', $rowD['nombre_estudiante']));
+                    $rowD['nombre_cliente'] = trim(preg_replace('/\s+/', ' ', $rowD['nombre_cliente']));
                 }
                 unset($rowD);
             }
 
             // Total ya registrado con esa referencia. Sirve para validar que la
             // suma de pagos de un mismo comprobante no exceda su valor (un
-            // comprobante puede repartirse entre varios estudiantes).
+            // comprobante puede repartirse entre varios clientes).
             // Se calcula sobre el resultado ya consultado: no agrega consultas.
             $totalReferencia = 0;
             foreach ($referenciaExistente as $rowT) {

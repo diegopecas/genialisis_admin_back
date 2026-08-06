@@ -5,7 +5,7 @@ class HistorialRecordatoriosPago
     {
         try {
             $db = Flight::db();
-            $sentence = $db->prepare("SELECT id, id_estudiante, id_persona_acudiente, telefono_usado, nombre_destinatario, tipo_recordatorio, monto_notificado, compromiso, fecha_compromiso, id_usuario, fecha_envio FROM historial_recordatorios_pago WHERE id_tenant = :id_tenant ORDER BY fecha_envio DESC");
+            $sentence = $db->prepare("SELECT id, id_cliente, id_persona_representante, telefono_usado, nombre_destinatario, tipo_recordatorio, monto_notificado, compromiso, fecha_compromiso, id_usuario, fecha_envio FROM historial_recordatorios_pago WHERE id_tenant = :id_tenant ORDER BY fecha_envio DESC");
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
@@ -16,15 +16,15 @@ class HistorialRecordatoriosPago
         }
     }
 
-    public static function getByEstudiante($idEstudiante)
+    public static function getByCliente($idCliente)
     {
         try {
             $db = Flight::db();
             $sentence = $db->prepare("
                 SELECT 
                     hrp.id, 
-                    hrp.id_estudiante, 
-                    hrp.id_persona_acudiente, 
+                    hrp.id_cliente, 
+                    hrp.id_persona_representante, 
                     hrp.telefono_usado, 
                     hrp.nombre_destinatario, 
                     hrp.tipo_recordatorio, 
@@ -37,17 +37,17 @@ class HistorialRecordatoriosPago
                 FROM historial_recordatorios_pago hrp
                 LEFT JOIN usuarios u ON u.id = hrp.id_usuario
                 LEFT JOIN personas pu ON pu.id = u.id_persona
-                WHERE hrp.id_estudiante = :id_estudiante AND hrp.id_tenant = :id_tenant
+                WHERE hrp.id_cliente = :id_cliente AND hrp.id_tenant = :id_tenant
                 ORDER BY hrp.fecha_envio DESC
             ");
-            $sentence->bindParam(':id_estudiante', $idEstudiante);
+            $sentence->bindParam(':id_cliente', $idCliente);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->execute();
             $response = $sentence->fetchAll();
             Flight::json($response);
         } catch (Exception $e) {
-            error_log('Error en getByEstudiante historial_recordatorios_pago: ' . $e->getMessage());
-            Flight::json(['error' => true, 'message' => 'Error al obtener historial del estudiante', 'detalles' => $e->getMessage()], 500);
+            error_log('Error en getByCliente historial_recordatorios_pago: ' . $e->getMessage());
+            Flight::json(['error' => true, 'message' => 'Error al obtener historial del cliente', 'detalles' => $e->getMessage()], 500);
         }
     }
 
@@ -59,13 +59,13 @@ class HistorialRecordatoriosPago
 
             $idNew = Uuid::generar();
             $sentence = $db->prepare("
-                INSERT INTO historial_recordatorios_pago (id, id_tenant, id_estudiante, id_persona_acudiente, telefono_usado, nombre_destinatario, tipo_recordatorio, monto_notificado, id_usuario, fecha_envio) 
-                VALUES (:id, :id_tenant, :id_estudiante, :id_persona_acudiente, :telefono_usado, :nombre_destinatario, :tipo_recordatorio, :monto_notificado, :id_usuario, NOW())
+                INSERT INTO historial_recordatorios_pago (id, id_tenant, id_cliente, id_persona_representante, telefono_usado, nombre_destinatario, tipo_recordatorio, monto_notificado, id_usuario, fecha_envio) 
+                VALUES (:id, :id_tenant, :id_cliente, :id_persona_representante, :telefono_usado, :nombre_destinatario, :tipo_recordatorio, :monto_notificado, :id_usuario, NOW())
             ");
             $sentence->bindValue(':id', $idNew);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $sentence->bindParam(':id_estudiante', $data['id_estudiante']);
-            $sentence->bindParam(':id_persona_acudiente', $data['id_persona_acudiente']);
+            $sentence->bindParam(':id_cliente', $data['id_cliente']);
+            $sentence->bindParam(':id_persona_representante', $data['id_persona_representante']);
             $sentence->bindParam(':telefono_usado', $data['telefono_usado']);
             $sentence->bindParam(':nombre_destinatario', $data['nombre_destinatario']);
             $sentence->bindParam(':tipo_recordatorio', $data['tipo_recordatorio']);

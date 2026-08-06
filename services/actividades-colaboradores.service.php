@@ -666,7 +666,7 @@ class ActividadesColaboradores
         Flight::json($response);
     }
 
-    public static function getGruposParaCalendario()
+    public static function getPlanesParaCalendario()
     {
         $db = Flight::db();
 
@@ -677,7 +677,7 @@ class ActividadesColaboradores
         color,
         orden
         
-        FROM grupos
+        FROM planes
         
         WHERE id_tenant = :id_tenant
         ORDER BY orden, nombre");
