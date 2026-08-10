@@ -4,7 +4,7 @@ class Representantes
     public static function getAll()
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT id, id_cliente, id_persona, id_tipo_representante, empresa, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo FROM representantes WHERE id_tenant = :id_tenant");
+        $sentence = $db->prepare("SELECT id, id_cliente, id_persona, id_tipo_representante, area, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo FROM representantes WHERE id_tenant = :id_tenant");
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
@@ -14,7 +14,7 @@ class Representantes
     public static function getById($id)
     {
         $db = Flight::db();
-        $sentence = $db->prepare("SELECT id, id_cliente, id_persona, id_tipo_representante, empresa, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo FROM representantes WHERE id = :id AND id_tenant = :id_tenant");
+        $sentence = $db->prepare("SELECT id, id_cliente, id_persona, id_tipo_representante, area, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo FROM representantes WHERE id = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
@@ -66,7 +66,7 @@ class Representantes
             $id_cliente = Flight::request()->data['id_cliente'];
             $id_persona = Flight::request()->data['id_persona'];
             $id_tipo_representante = Flight::request()->data['id_tipo_representante'];
-            $empresa = Flight::request()->data['empresa'] ?? null;
+            $area = Flight::request()->data['area'] ?? null;
             $cargo = Flight::request()->data['cargo'] ?? null;
             $telefono_oficina = Flight::request()->data['telefono_oficina'] ?? null;
             $es_responsable_pago = Flight::request()->data['es_responsable_pago'];
@@ -75,14 +75,14 @@ class Representantes
             $activo = Flight::request()->data['activo'];
 
             $idNew = Uuid::generar();
-            $sentence = $db->prepare("INSERT INTO representantes(id, id_tenant, id_cliente, id_persona, id_tipo_representante, empresa, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo) 
-                                 VALUES (:id, :id_tenant, :id_cliente, :id_persona, :id_tipo_representante, :empresa, :cargo, :telefono_oficina, :es_responsable_pago, :autorizado_recoger, :autorizado_sistema, :activo)");
+            $sentence = $db->prepare("INSERT INTO representantes(id, id_tenant, id_cliente, id_persona, id_tipo_representante, area, cargo, telefono_oficina, es_responsable_pago, autorizado_recoger, autorizado_sistema, activo) 
+                                 VALUES (:id, :id_tenant, :id_cliente, :id_persona, :id_tipo_representante, :area, :cargo, :telefono_oficina, :es_responsable_pago, :autorizado_recoger, :autorizado_sistema, :activo)");
             $sentence->bindValue(':id', $idNew);
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_persona', $id_persona);
             $sentence->bindParam(':id_tipo_representante', $id_tipo_representante);
-            $sentence->bindParam(':empresa', $empresa);
+            $sentence->bindParam(':area', $area);
             $sentence->bindParam(':cargo', $cargo);
             $sentence->bindParam(':telefono_oficina', $telefono_oficina);
             $sentence->bindParam(':es_responsable_pago', $es_responsable_pago);
@@ -114,7 +114,7 @@ class Representantes
             $id_cliente = Flight::request()->data['id_cliente'];
             $id_persona = Flight::request()->data['id_persona'];
             $id_tipo_representante = Flight::request()->data['id_tipo_representante'];
-            $empresa = Flight::request()->data['empresa'] ?? null;
+            $area = Flight::request()->data['area'] ?? null;
             $cargo = Flight::request()->data['cargo'] ?? null;
             $telefono_oficina = Flight::request()->data['telefono_oficina'] ?? null;
             $es_responsable_pago = Flight::request()->data['es_responsable_pago'];
@@ -126,7 +126,7 @@ class Representantes
                                 id_cliente = :id_cliente, 
                                 id_persona = :id_persona, 
                                 id_tipo_representante = :id_tipo_representante, 
-                                empresa = :empresa,
+                                area = :area,
                                 cargo = :cargo,
                                 telefono_oficina = :telefono_oficina,
                                 es_responsable_pago = :es_responsable_pago,
@@ -139,7 +139,7 @@ class Representantes
             $sentence->bindParam(':id_cliente', $id_cliente);
             $sentence->bindParam(':id_persona', $id_persona);
             $sentence->bindParam(':id_tipo_representante', $id_tipo_representante);
-            $sentence->bindParam(':empresa', $empresa);
+            $sentence->bindParam(':area', $area);
             $sentence->bindParam(':cargo', $cargo);
             $sentence->bindParam(':telefono_oficina', $telefono_oficina);
             $sentence->bindParam(':es_responsable_pago', $es_responsable_pago);
