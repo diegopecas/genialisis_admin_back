@@ -365,6 +365,15 @@ Flight::before('start', function (&$params, &$output) {
         return;
     }
 
+    // Taller de visitas: el equipo del jardin responde desde el celular y no
+    // tiene usuario en el sistema. La credencial es el token de la visita,
+    // que cada handler valida contra visitas.token antes de hacer nada. El
+    // prefijo cubre solo /taller-publico/; el resto del modulo (/visitas...)
+    // sigue exigiendo sesion y permisos.
+    if (strpos($ruta, '/taller-publico/') === 0) {
+        return;
+    }
+
     // Resto: token valido y que el tenant del token coincida con el del request.
     $userData = JWTService::requerirTenant(TenantContext::codigo());
 
