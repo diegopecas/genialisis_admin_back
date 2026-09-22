@@ -15,6 +15,9 @@ if (file_exists($autoloadPath)) {
     require_once $autoloadPath;
 }
 
+// Carpeta de configuracion segun entorno (define CONFIG_DIR)
+require_once dirname(__DIR__) . '/config-path.php';
+
 // Responder rápido a Meta (< 5 segundos)
 ignore_user_abort(true);
 
@@ -23,7 +26,7 @@ ignore_user_abort(true);
 // =============================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_verify_token'])) {
     
-    require_once dirname(__DIR__) . '/config/master.env.php';
+    require_once CONFIG_DIR . '/master.env.php';
     
     $dbMaster = conectarBD(DB_MASTER_DSN, DB_MASTER_USERNAME, DB_MASTER_PASSWORD);
     
@@ -78,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Cargar BD maestra
-        require_once dirname(__DIR__) . '/config/master.env.php';
+        require_once CONFIG_DIR . '/master.env.php';
         $dbMaster = conectarBD(DB_MASTER_DSN, DB_MASTER_USERNAME, DB_MASTER_PASSWORD);
         
         // Resolver tenant
@@ -99,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Cargar config del tenant y conectar a su BD
-        $tenantConfig = dirname(__DIR__) . "/config/tenants/{$config['codigo']}.env.php";
+        $tenantConfig = CONFIG_DIR . "/tenants/{$config['codigo']}.env.php";
         
         if (!file_exists($tenantConfig)) {
             logError("Config no encontrada para tenant: {$config['codigo']}");

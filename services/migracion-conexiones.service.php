@@ -323,7 +323,7 @@ class MigracionConexiones
             return null;
         }
         if (!defined('MIGRACION_CLAVE')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $iv = openssl_random_pseudo_bytes(16);
         $llave = hash('sha256', MIGRACION_CLAVE, true);
@@ -337,7 +337,7 @@ class MigracionConexiones
             return '';
         }
         if (!defined('MIGRACION_CLAVE')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $bruto = base64_decode($cifrado);
         if ($bruto === false || strlen($bruto) <= 16) {

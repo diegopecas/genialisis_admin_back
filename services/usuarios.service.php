@@ -5,7 +5,7 @@ class Usuarios
     {
         static $db = null;
         if ($db === null) {
-            require_once __DIR__ . '/../config/master.env.php';
+            require_once CONFIG_DIR . '/master.env.php';
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

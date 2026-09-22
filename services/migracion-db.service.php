@@ -34,7 +34,7 @@ class MigracionDb
     {
         if (self::$mig === null) {
             if (!defined('DB_MIGRACION_DSN')) {
-                require_once __DIR__ . '/../config/migracion.env.php';
+                require_once CONFIG_DIR . '/migracion.env.php';
             }
             self::$mig = new PDO(
                 DB_MIGRACION_DSN,
@@ -103,7 +103,7 @@ class MigracionDb
             return null;
         }
         if (!defined('MIGRACION_CLAVE')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $iv = openssl_random_pseudo_bytes(16);
         $llave = hash('sha256', MIGRACION_CLAVE, true);
@@ -117,7 +117,7 @@ class MigracionDb
             return '';
         }
         if (!defined('MIGRACION_CLAVE')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $bruto = base64_decode($cifrado);
         if ($bruto === false || strlen($bruto) <= 16) {
@@ -167,7 +167,7 @@ class MigracionDb
     public static function carpetaSesion($idSesion)
     {
         if (!defined('MIGRACION_RUTA_ARCHIVOS')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $ruta = rtrim(MIGRACION_RUTA_ARCHIVOS, '/\\') . DIRECTORY_SEPARATOR . $idSesion;
         if (!is_dir($ruta)) {

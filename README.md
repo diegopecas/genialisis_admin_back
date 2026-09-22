@@ -925,3 +925,28 @@ tree /F  > estructura_app.txt
 
 # Start server 
 C:/xampp/php/php -S localhost:1111 
+
+
+## Ambientes — genialisis_admin_back (puerto 1111)
+
+La carpeta de configuración se elige con la variable de entorno `GENIALISIS_ENV`.
+Sin la variable se usa `config/` (así corre en el hosting).
+
+### Servidor local (PowerShell)
+```
+C:/xampp/php/php -S localhost:1111                                   # config
+$env:GENIALISIS_ENV="qa";   C:/xampp/php/php -S localhost:1111       # config_qa
+$env:GENIALISIS_ENV="prod"; C:/xampp/php/php -S localhost:1111       # config_prod
+```
+
+La variable queda activa en esa terminal. Para volver a `config/`:
+```
+Remove-Item Env:GENIALISIS_ENV
+```
+
+### Servidor local (cmd)
+```
+set "GENIALISIS_ENV=qa" && C:/xampp/php/php -S localhost:1111
+```
+
+Si el ambiente no existe, el back responde 500 con código `CONFIG_ENV_INVALIDO`.

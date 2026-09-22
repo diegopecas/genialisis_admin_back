@@ -32,7 +32,7 @@ class WebAuthn
     {
         static $db = null;
         if ($db === null) {
-            require_once __DIR__ . '/../config/master.env.php';
+            require_once CONFIG_DIR . '/master.env.php';
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -64,7 +64,7 @@ class WebAuthn
      */
     private static function getDbTenant($tenantCodigo)
     {
-        $configFile = __DIR__ . "/../config/tenants/{$tenantCodigo}.env.php";
+        $configFile = CONFIG_DIR . "/tenants/{$tenantCodigo}.env.php";
         if (!file_exists($configFile)) {
             return null;
         }

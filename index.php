@@ -26,9 +26,15 @@ if($method == "OPTIONS") {
 }
 
 // ===================================================================
+// CARPETA DE CONFIGURACION SEGUN ENTORNO (GENIALISIS_ENV)
+// Define CONFIG_DIR. Sin la variable de entorno se usa config/.
+// ===================================================================
+require_once __DIR__ . '/config-path.php';
+
+// ===================================================================
 // 🛡️ AUDITORÍA - Punto único de captura (antes de cualquier ruta)
 // ===================================================================
-require_once __DIR__ . '/config/audit.env.php';
+require_once CONFIG_DIR . '/audit.env.php';
 require_once __DIR__ . '/services/audit.service.php';
 AuditService::iniciar('GENIALISIS');
 
@@ -49,8 +55,8 @@ if (strpos($requestUri, '/webhooks/firma') !== false) {
 // Login biométrico directo (sin tenant)
 if (strpos($requestUri, '/auth/webauthn') !== false) {
     require 'flight/Flight.php';
-    require_once __DIR__ . '/config/master.env.php';
-    require_once __DIR__ . '/config/jwt.env.php';
+    require_once CONFIG_DIR . '/master.env.php';
+    require_once CONFIG_DIR . '/jwt.env.php';
     require_once __DIR__ . '/vendor/firebase/php-jwt/src/JWT.php';
     require_once __DIR__ . '/vendor/firebase/php-jwt/src/Key.php';
     require_once __DIR__ . '/services/jwt.service.php';
@@ -63,7 +69,7 @@ if (strpos($requestUri, '/auth/webauthn') !== false) {
 // Pre-Login (autenticación sin tenant)
 if (strpos($requestUri, '/auth/pre-login') !== false) {
     require 'flight/Flight.php';
-    require_once __DIR__ . '/config/master.env.php';
+    require_once CONFIG_DIR . '/master.env.php';
     require_once __DIR__ . '/services/auth-master.service.php';
     require_once __DIR__ . '/routes/auth-master.routes.php';
     
@@ -76,7 +82,7 @@ require 'flight/Flight.php';
 // ===================================================================
 // SEGURIDAD - clave JWT (no versionada) y contexto de tenant centralizado
 // ===================================================================
-require_once __DIR__ . '/config/jwt.env.php';
+require_once CONFIG_DIR . '/jwt.env.php';
 require_once __DIR__ . '/services/tenant-context.service.php';
 
 
@@ -130,7 +136,7 @@ if (empty($tenant)) {
 }
 
 // Construir ruta del archivo de configuración
-$configFile = __DIR__ . "/config/tenants/{$tenant}.env.php";
+$configFile = CONFIG_DIR . "/tenants/{$tenant}.env.php";
 
 // 🚨 VALIDACIÓN ESTRICTA: Si el archivo no existe, devolver error 404
 if (!file_exists($configFile)) {
@@ -251,7 +257,7 @@ Flight::after('db', function($db) {
 // ===================================================================
 // 📌 REGISTRAR CONEXIÓN BD MAESTRA
 // ===================================================================
-require_once __DIR__ . '/config/master.env.php';
+require_once CONFIG_DIR . '/master.env.php';
 
 Flight::register('db_master', 'PDO', array(
     DB_MASTER_DSN,

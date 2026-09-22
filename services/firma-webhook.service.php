@@ -45,7 +45,7 @@ class FirmaWebhook
             error_log("   Workspace name: " . ($workspaceName ?? 'NULL'));
             
             // Cargar mapeo de workspaces (JSON)
-            $workspaceMapFile = __DIR__ . "/../config/firma_workspaces.json";
+            $workspaceMapFile = CONFIG_DIR . "/firma_workspaces.json";
             if (!file_exists($workspaceMapFile)) {
                 error_log("Archivo de mapeo no encontrado: " . $workspaceMapFile);
                 Flight::json(['error' => 'Configuracion de workspaces no encontrada'], 500);
@@ -66,7 +66,7 @@ class FirmaWebhook
             
             // Validar tenant_code y cargar config
             $tenantCode = preg_replace('/[^a-z0-9\-_]/i', '', $tenantCode);
-            $configFile = __DIR__ . "/../config/tenants/{$tenantCode}.env.php";
+            $configFile = CONFIG_DIR . "/tenants/{$tenantCode}.env.php";
             
             if (!file_exists($configFile)) {
                 error_log("Config no encontrada para tenant: " . $tenantCode . " (archivo: " . $configFile . ")");

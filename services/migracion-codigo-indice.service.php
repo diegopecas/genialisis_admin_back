@@ -88,7 +88,7 @@ class MigracionCodigoIndice
             }
 
             if (!defined('MIGRACION_RUTA_CODIGO')) {
-                require_once __DIR__ . '/../config/migracion.env.php';
+                require_once CONFIG_DIR . '/migracion.env.php';
             }
 
             $carpeta = rtrim(MIGRACION_RUTA_CODIGO, '/\\');

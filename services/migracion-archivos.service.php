@@ -96,7 +96,7 @@ class MigracionArchivos
             }
 
             if (!defined('MIGRACION_MAX_ARCHIVO')) {
-                require_once __DIR__ . '/../config/migracion.env.php';
+                require_once CONFIG_DIR . '/migracion.env.php';
             }
 
             $db = Flight::db();
@@ -319,7 +319,7 @@ class MigracionArchivos
     public static function carpetaSesion($id_sesion)
     {
         if (!defined('MIGRACION_RUTA_ARCHIVOS')) {
-            require_once __DIR__ . '/../config/migracion.env.php';
+            require_once CONFIG_DIR . '/migracion.env.php';
         }
         $ruta = rtrim(MIGRACION_RUTA_ARCHIVOS, '/\\') . DIRECTORY_SEPARATOR . $id_sesion;
         if (!is_dir($ruta)) {
