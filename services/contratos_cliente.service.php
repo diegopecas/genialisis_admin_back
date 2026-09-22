@@ -18,9 +18,9 @@ class ContratosCliente
                    cm.id_usuario_genera, cm.fecha_generacion, cm.activo,
                    cm.firmado, cm.ruta_documento_firmado,
                    g.nombre AS nombre_plan,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_cliente,
-                   p.numero_identificacion AS documento_cliente
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_cliente,
+                   CASE WHEN p.digito_verificacion IS NOT NULL AND p.digito_verificacion <> '' THEN CONCAT(p.numero_identificacion, '-', p.digito_verificacion) ELSE p.numero_identificacion END AS documento_cliente
             FROM contratos_cliente cm
             INNER JOIN clientes e ON cm.id_cliente = e.id
             INNER JOIN personas p ON e.id_persona = p.id
@@ -51,9 +51,9 @@ class ContratosCliente
                    cm.id_usuario_genera, cm.fecha_generacion, cm.activo,
                    cm.firmado, cm.ruta_documento_firmado,
                    g.nombre AS nombre_plan,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_cliente,
-                   p.numero_identificacion AS documento_cliente
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_cliente,
+                   CASE WHEN p.digito_verificacion IS NOT NULL AND p.digito_verificacion <> '' THEN CONCAT(p.numero_identificacion, '-', p.digito_verificacion) ELSE p.numero_identificacion END AS documento_cliente
             FROM contratos_cliente cm
             INNER JOIN clientes e ON cm.id_cliente = e.id
             INNER JOIN personas p ON e.id_persona = p.id
@@ -84,7 +84,7 @@ class ContratosCliente
                    cm.id_usuario_genera, cm.fecha_generacion, cm.activo,
                    cm.firmado, cm.ruta_documento_firmado,
                    g.nombre AS nombre_plan,
-                   CONCAT_WS(' ', pu.primer_nombre, pu.primer_apellido) AS nombre_usuario_genera
+                   COALESCE(NULLIF(TRIM(pu.razon_social), ''), CONCAT_WS(' ', pu.primer_nombre, pu.primer_apellido)) AS nombre_usuario_genera
             FROM contratos_cliente cm
             INNER JOIN planes g ON cm.id_plan = g.id
             LEFT JOIN usuarios u ON cm.id_usuario_genera = u.id
@@ -112,14 +112,14 @@ class ContratosCliente
                    cm.autoriza_imagenes, cm.autoriza_pagare, cm.activo,
                    cm.firmado, cm.ruta_documento_firmado,
                    g.nombre AS nombre_plan,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_cliente
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_cliente
             FROM contratos_cliente cm
             INNER JOIN clientes e ON cm.id_cliente = e.id
             INNER JOIN personas p ON e.id_persona = p.id
             INNER JOIN planes g ON cm.id_plan = g.id
             WHERE cm.anio = :anio AND cm.id_tenant = :id_tenant
-            ORDER BY g.orden, p.primer_nombre
+            ORDER BY g.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre)
         ");
         $sentence->bindParam(':anio', $anio);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -422,8 +422,8 @@ class ContratosCliente
         $sentence = $db->prepare("
             SELECT cma.id, cma.id_contrato, cma.id_representante, cma.orden,
                    a.id_tipo_representante, ta.nombre AS tipo_representante,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_representante,
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_representante,
                    p.numero_identificacion AS documento_representante,
                    ti.nombre AS tipo_identificacion
             FROM contratos_cliente_representantes cma
@@ -466,9 +466,10 @@ class ContratosCliente
 
         $sentenceCliente = $db->prepare("
             SELECT e.id, e.id_persona,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
-                   p.numero_identificacion, ti.nombre AS tipo_identificacion,
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_completo,
+                   CASE WHEN p.digito_verificacion IS NOT NULL AND p.digito_verificacion <> '' THEN CONCAT(p.numero_identificacion, '-', p.digito_verificacion) ELSE p.numero_identificacion END AS numero_identificacion,
+                   ti.nombre AS tipo_identificacion,
                    p.direccion, c.nombre AS ciudad
             FROM clientes e
             INNER JOIN personas p ON e.id_persona = p.id
@@ -483,8 +484,8 @@ class ContratosCliente
 
         $sentenceRepresentantes = $db->prepare("
             SELECT cma.orden,
-                   CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
+                   COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                          p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_completo,
                    p.numero_identificacion, ti.nombre AS tipo_identificacion,
                    p.direccion, c.nombre AS ciudad,
                    ta.nombre AS tipo_representante,

@@ -170,7 +170,8 @@ class FirmaDigital
                     primer_nombre,
                     COALESCE(segundo_nombre, '') as segundo_nombre,
                     primer_apellido,
-                    COALESCE(segundo_apellido, '') as segundo_apellido
+                    COALESCE(segundo_apellido, '') as segundo_apellido,
+                    COALESCE(razon_social, '') as razon_social
                 FROM personas
                 WHERE correo_electronico IN ($placeholders) AND id_tenant = ?
             ");
@@ -271,6 +272,11 @@ class FirmaDigital
                     $persona = $personasMap[$email];
                     $firstName = trim($persona['primer_nombre'] . ' ' . $persona['segundo_nombre']);
                     $lastName = trim($persona['primer_apellido'] . ' ' . $persona['segundo_apellido']);
+                    // Cliente empresa: no tiene nombres, se usa la razón social.
+                    if ($firstName === '' && $persona['razon_social'] !== '') {
+                        $firstName = trim($persona['razon_social']);
+                        $lastName = 'Firmante';
+                    }
                 } else {
                     $emailParts = explode('@', $email);
                     $emailName = $emailParts[0];

@@ -8,7 +8,7 @@ Flight::route('DELETE /clientes', [Clientes::class, 'delete']);
 Flight::route('POST /clientes/verificar-duplicados', [Clientes::class, 'verificarDuplicados']);
 Flight::route('POST /clientes/actualizacion-masiva', [Clientes::class, 'actualizacionMasiva']);
 Flight::route('POST /clientes/registro-rapido', [Clientes::class, 'registroRapido']);
-Flight::route('POST /clientes/analizar-registro-civil', [Clientes::class, 'analizarRegistroCivil']);
+Flight::route('POST /clientes/analizar-rut', [Clientes::class, 'analizarRut']);
 Flight::route('POST /clientes/registro-rapido-completo', [Clientes::class, 'registroRapidoCompleto']);
 Flight::route('GET /clientes-reporte-completo', [Clientes::class, 'getReporteCompleto']);
 Flight::route('GET /clientes-reporte-recordatorios', [Clientes::class, 'getReporteRecordatorios']);

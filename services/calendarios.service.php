@@ -115,6 +115,7 @@ class Calendarios
                 p.id AS id_persona,
                 p.primer_nombre,
                 p.primer_apellido,
+                p.razon_social,
                 p.fecha_nacimiento,
                 'cliente' AS tipo_persona,
                 NULL AS sobrenombre,
@@ -137,6 +138,7 @@ class Calendarios
                 p.primer_nombre,
                 p.primer_apellido,
                 p.fecha_nacimiento,
+                NULL AS razon_social,
                 'colaborador' AS tipo_persona,
                 col.sobrenombre,
                 ca.nombre_corto AS cargo_nombre_corto
@@ -161,7 +163,8 @@ class Calendarios
             if ($c['tipo_persona'] === 'colaborador') {
                 $nombre = !empty($c['sobrenombre']) ? $c['sobrenombre'] : trim($c['primer_nombre'] . ' ' . $c['primer_apellido']);
             } else {
-                $nombre = trim($c['primer_nombre'] . ' ' . $c['primer_apellido']);
+                // Cliente empresa: su nombre es la razón social.
+                $nombre = !empty($c['razon_social']) ? trim($c['razon_social']) : trim($c['primer_nombre'] . ' ' . $c['primer_apellido']);
             }
 
             $cumpleanos[] = [

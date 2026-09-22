@@ -9,7 +9,7 @@ class ClientesXPlanes
 
         $db = Flight::db();
         $sentence = $db->prepare("select exg.id, exg.anio, exg.id_cliente, 
-        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
         exg.id_plan, g.nombre nombre_plan,
         e.activo, e.alimentacion, e.permanente, e.anno
         from clientes_x_planes exg
@@ -18,7 +18,7 @@ class ClientesXPlanes
         inner join planes g on exg.id_plan = g.id 
         where exg.activo = 1
         and exg.id_tenant = :id_tenant
-        order by g.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido ");
+        order by g.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido ");
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
@@ -29,7 +29,7 @@ class ClientesXPlanes
     {
         $db = Flight::db();
         $sentence = $db->prepare("select exg.id, exg.anio, exg.id_cliente, 
-        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
         exg.id_plan, g.nombre nombre_plan,
         e.activo, e.alimentacion, e.permanente, e.anno
         from clientes_x_planes exg
@@ -38,7 +38,7 @@ class ClientesXPlanes
         inner join planes g on exg.id_plan = g.id 
         where e.activo = 1 and exg.activo = 1
         and exg.id_tenant = :id_tenant
-        order by g.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido ");
+        order by g.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido ");
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
@@ -55,7 +55,7 @@ class ClientesXPlanes
 
             $db = Flight::db();
             $sentence = $db->prepare("select exg.id, exg.anio, exg.id_cliente, 
-            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
             exg.id_plan, g.nombre nombre_plan,
             exg.activo, e.alimentacion, e.permanente, e.anno
             from clientes_x_planes exg
@@ -95,7 +95,7 @@ class ClientesXPlanes
         $nombre     = isset(Flight::request()->query['nombre']) ? trim(Flight::request()->query['nombre']) : '';
 
         $sql = "select exg.id, exg.anio, exg.id_cliente, 
-            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
             exg.id_plan, g.nombre nombre_plan,
             e.activo, e.alimentacion, e.permanente, e.anno
             from clientes_x_planes exg
@@ -124,11 +124,11 @@ class ClientesXPlanes
         }
 
         if ($nombre !== '') {
-            $sql .= " and concat_ws(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) like :nombre";
+            $sql .= " and COALESCE(NULLIF(TRIM(p.razon_social), ''), concat_ws(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) like :nombre";
             $params[':nombre'] = '%' . $nombre . '%';
         }
 
-        $sql .= " order by g.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido";
+        $sql .= " order by g.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido";
 
         $sentence = $db->prepare($sql);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -144,7 +144,7 @@ class ClientesXPlanes
     {
         $db = Flight::db();
         $sentence = $db->prepare("SELECT exg.id, exg.anio, exg.id_cliente, 
-        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
         exg.id_plan, g.nombre nombre_plan,
         e.activo, e.alimentacion, e.permanente, e.anno,
         e.telefono_emergencia, e.eps, e.fecha_ingreso
@@ -166,7 +166,7 @@ class ClientesXPlanes
     {
         $db = Flight::db();
         $sentence = $db->prepare("select exg.id, exg.anio, exg.id_cliente, 
-        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+        p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
         exg.id_plan, g.nombre nombre_plan,
         exg.activo, exg.id id_cliente_plan, e.alimentacion, e.permanente, e.anno
         from clientes_x_planes exg

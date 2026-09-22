@@ -408,7 +408,10 @@ class Usuarios
 
             Flight::json(['id' => $id_usuario, 'usuario' => $usuario]);
         } catch (Exception $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error en Usuarios::new: " . $e->getMessage());
             Flight::json(['error' => $e->getMessage()], 500);
         }
     }

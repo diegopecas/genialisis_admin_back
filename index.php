@@ -6,6 +6,15 @@ ini_set('display_startup_errors', 1);
 ini_set('max_execution_time', 300);
 error_reporting(E_ALL);
 
+// Todo error queda registrado con error_log. Con el servidor embebido (php -S)
+// se manda a la terminal, porque display_errors solo lo pinta en el navegador.
+// En producción se deja el error_log que tenga configurado el servidor (el
+// archivo de log de errores del hosting).
+ini_set('log_errors', 1);
+if (PHP_SAPI === 'cli-server') {
+    ini_set('error_log', 'php://stderr');
+}
+
 date_default_timezone_set('America/Bogota');
 
 // ===================================================================
@@ -437,6 +446,24 @@ Flight::before('start', function (&$params, &$output) {
             exit;
         }
     }
+});
+
+// Los errores no controlados los atrapa Flight y los pinta en la respuesta, pero
+// no pasan por error_log, asi que ni la terminal ni el log de errores muestran
+// nada. Aqui se registran antes de responder; lo que ve el cliente no cambia.
+Flight::map('error', function (Throwable $ex) {
+    error_log('[ERROR] ' . get_class($ex) . ': ' . $ex->getMessage());
+    error_log('        en ' . $ex->getFile() . ':' . $ex->getLine());
+    error_log($ex->getTraceAsString());
+
+    if (!headers_sent()) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: text/html; charset=utf-8');
+    }
+
+    echo '<h1>500 Internal Server Error</h1>';
+    echo '<h3>' . htmlspecialchars($ex->getMessage(), ENT_QUOTES, 'UTF-8') . '</h3>';
+    echo '<pre>' . htmlspecialchars($ex->getTraceAsString(), ENT_QUOTES, 'UTF-8') . '</pre>';
 });
 
 Flight::start();

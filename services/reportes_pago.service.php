@@ -21,10 +21,10 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio,
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pa.razon_social), ''), TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido))) AS nombre_representante,
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio,
                 dp.nombre_archivo AS comprobante_nombre,
                 dp.ruta_archivo AS comprobante_ruta
             FROM reportes_pago rp
@@ -68,10 +68,10 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pa.razon_social), ''), TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido))) AS nombre_representante,
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio
             FROM reportes_pago rp
             INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
@@ -110,8 +110,8 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio,
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta,
                 dp.nombre_archivo AS comprobante_nombre,
                 dp.ruta_archivo AS comprobante_ruta
             FROM reportes_pago rp
@@ -151,8 +151,8 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.fecha_asociacion,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio
             FROM reportes_pago rp
             INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
@@ -189,10 +189,10 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.estado,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pa.razon_social), ''), TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido))) AS nombre_representante,
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio
             FROM reportes_pago rp
             INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
@@ -228,8 +228,8 @@ class ReportesPago
                 rp.fecha_pago,
                 rp.fecha_registro,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido)) AS nombre_cliente,
-                TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido)) AS nombre_representante
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT_WS(' ', pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pa.razon_social), ''), TRIM(CONCAT_WS(' ', pa.primer_nombre, pa.segundo_nombre, pa.primer_apellido, pa.segundo_apellido))) AS nombre_representante
             FROM reportes_pago rp
             INNER JOIN clientes est ON est.id = rp.id_cliente
             INNER JOIN personas pe ON pe.id = est.id_persona
@@ -364,7 +364,7 @@ class ReportesPago
                 rp.fecha_registro,
                 rp.estado,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta
             FROM reportes_pago rp
             INNER JOIN personas pr ON pr.id = rp.id_persona_reporta
             INNER JOIN tipos_pagos tp ON tp.id = rp.id_tipo_pago
@@ -393,8 +393,8 @@ class ReportesPago
                 rp.id_documento_persona,
                 rp.fecha_registro,
                 tp.nombre AS nombre_tipo_pago,
-                TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido)) AS nombre_persona_reporta,
-                TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido)) AS nombre_colaborador_recibio,
+                COALESCE(NULLIF(TRIM(pr.razon_social), ''), TRIM(CONCAT_WS(' ', pr.primer_nombre, pr.segundo_nombre, pr.primer_apellido, pr.segundo_apellido))) AS nombre_persona_reporta,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT_WS(' ', pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido))) AS nombre_colaborador_recibio,
                 dp.nombre_archivo AS comprobante_nombre,
                 dp.ruta_archivo AS comprobante_ruta
             FROM reportes_pago rp
@@ -459,7 +459,7 @@ class ReportesPago
         $sentence = $db->prepare("
             SELECT 
                 c.id,
-                TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_completo,
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_completo,
                 car.nombre AS nombre_cargo
             FROM colaboradores c
             INNER JOIN personas p ON p.id = c.id_persona

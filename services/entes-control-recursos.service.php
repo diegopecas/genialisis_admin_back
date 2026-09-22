@@ -313,7 +313,7 @@ class EntesControlRecursos
                 $ph = implode(',', array_fill(0, count($ids), '?'));
                 $st = $db->prepare("
                     SELECT e.id AS id_cliente,
-                           TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_cliente,
+                           COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_cliente,
                            p.numero_identificacion,
                            p.foto
                     FROM clientes e

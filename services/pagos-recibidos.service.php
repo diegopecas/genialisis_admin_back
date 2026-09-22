@@ -16,13 +16,13 @@ class PagosRecibidos
                 pr.id_colaborador,
                 pr.id_representante, 
                 a.id_cliente as representante_id_cliente,
-                CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
+                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, ''))) AS nombre_representante,
                 ta.nombre AS tipo_representante,
-                CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                       pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente,
-                CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
-                       pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, '')) AS nombre_colaborador,
+                COALESCE(NULLIF(TRIM(pe.razon_social), ''), CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
+                       pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, ''))) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(pc.razon_social), ''), CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
+                       pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, ''))) AS nombre_colaborador,
                 pr.id_tipo_pago, 
                 tp.nombre AS tipo_pago,
                 pr.valor_recibido, 
@@ -33,19 +33,19 @@ class PagosRecibidos
                 pr.fecha_registro, 
                 pr.id_usuario_registro,
                 u.usuario AS nombre_usuario_registro,
-                CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                       p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
+                COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                       p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
                 pr.fecha_contabilizacion, 
                 pr.id_usuario_contable,
                 uc.usuario AS nombre_usuario_contable,
-                CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                       p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable,
+                COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                       p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable,
                 pr.anulado,
                 pr.fecha_anulacion,
                 pr.id_usuario_anulacion,
                 ua.usuario AS nombre_usuario_anulacion,
-                CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
-                       p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, '')) AS nombre_completo_usuario_anulacion
+                COALESCE(NULLIF(TRIM(p_ua.razon_social), ''), CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
+                       p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, ''))) AS nombre_completo_usuario_anulacion
             FROM 
                 pagos_recibidos pr
             LEFT JOIN 
@@ -82,16 +82,16 @@ class PagosRecibidos
             GROUP BY 
                 pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante, 
                 a.id_cliente, p.primer_nombre, p.segundo_nombre,
-                p.primer_apellido, p.segundo_apellido, ta.nombre,
-                pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido,
-                pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido,
+                p.primer_apellido, p.segundo_apellido, p.razon_social, ta.nombre,
+                pe.primer_nombre, pe.segundo_nombre, pe.primer_apellido, pe.segundo_apellido, pe.razon_social,
+                pc.primer_nombre, pc.segundo_nombre, pc.primer_apellido, pc.segundo_apellido, pc.razon_social,
                 pr.id_tipo_pago, tp.nombre,
                 pr.valor_recibido, pr.observaciones, pr.referencia_bancaria, 
                 pr.fecha_registro, pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
-                p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
-                uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
+                p_ur.primer_apellido, p_ur.segundo_apellido, p_ur.razon_social, pr.fecha_contabilizacion, pr.id_usuario_contable, 
+                uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido, p_uc.razon_social,
                 pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-                p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido
+                p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, p_ua.razon_social
             ORDER BY pr.fecha DESC
         ");
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -133,12 +133,12 @@ class PagosRecibidos
             pr.fecha_anulacion,
             pr.id_usuario_anulacion,
             pr.id_documento_persona,
-            CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                    p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
-            CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                    p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable,
-            CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
-                    p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, '')) AS nombre_completo_usuario_anulacion
+            COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                    p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
+            COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                    p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable,
+            COALESCE(NULLIF(TRIM(p_ua.razon_social), ''), CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
+                    p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, ''))) AS nombre_completo_usuario_anulacion
         FROM 
             pagos_recibidos pr
         LEFT JOIN 
@@ -161,10 +161,10 @@ class PagosRecibidos
             pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante, pr.id_tipo_pago, pr.valor_recibido,
             pr.observaciones, pr.referencia_bancaria, pr.fecha_registro,
             pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
-            p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
-            uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
+            p_ur.primer_apellido, p_ur.segundo_apellido, p_ur.razon_social, pr.fecha_contabilizacion, pr.id_usuario_contable, 
+            uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido, p_uc.razon_social,
             pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, pr.id_documento_persona
+            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, p_ua.razon_social, pr.id_documento_persona
     ");
         $sentence->bindParam(':id', $id);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -183,8 +183,8 @@ class PagosRecibidos
                     pr.fecha, 
                     pr.id_representante, 
                     a.id_cliente,
-                    CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                           p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
+                           p.primer_apellido, ' ', COALESCE(p.segundo_apellido, ''))) AS nombre_representante,
                     ta.nombre AS tipo_representante,
                     pr.id_tipo_pago, 
                     tp.nombre AS tipo_pago,
@@ -196,20 +196,20 @@ class PagosRecibidos
                     pr.fecha_registro, 
                     pr.id_usuario_registro,
                     u.usuario AS nombre_usuario_registro,
-                    CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                           p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
+                    COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                           p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
                     pr.fecha_contabilizacion, 
                     pr.id_usuario_contable,
                     uc.usuario AS nombre_usuario_contable,
-                    CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                           p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable,
+                    COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                           p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable,
                     pr.anulado,
                     pr.fecha_anulacion,
                     pr.id_usuario_anulacion,
                     pr.id_documento_persona,
                     ua.usuario AS nombre_usuario_anulacion,
-                    CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
-                           p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, '')) AS nombre_completo_usuario_anulacion
+                    COALESCE(NULLIF(TRIM(p_ua.razon_social), ''), CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
+                           p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, ''))) AS nombre_completo_usuario_anulacion
                 FROM 
                     pagos_recibidos pr
                 LEFT JOIN 
@@ -238,13 +238,13 @@ class PagosRecibidos
                     pr.id_cliente = :id AND pr.id_tenant = :id_tenant
                 GROUP BY 
                     pr.id, pr.fecha, pr.id_representante, a.id_cliente, p.primer_nombre, p.segundo_nombre,
-                    p.primer_apellido, p.segundo_apellido, ta.nombre, pr.id_tipo_pago, tp.nombre,
+                    p.primer_apellido, p.segundo_apellido, p.razon_social, ta.nombre, pr.id_tipo_pago, tp.nombre,
                     pr.valor_recibido, pr.observaciones, pr.referencia_bancaria, 
                     pr.fecha_registro, pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
-                    p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
-                    uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
+                    p_ur.primer_apellido, p_ur.segundo_apellido, p_ur.razon_social, pr.fecha_contabilizacion, pr.id_usuario_contable, 
+                    uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido, p_uc.razon_social,
                     pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-                    p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, pr.id_documento_persona
+                    p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, p_ua.razon_social, pr.id_documento_persona
                 order by pr.fecha desc, pr.id desc
         ");
 
@@ -265,8 +265,8 @@ class PagosRecibidos
             pr.fecha, 
             pr.id_colaborador,
             pr.id_representante, 
-            CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
-                   pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, '')) AS nombre_colaborador,
+            COALESCE(NULLIF(TRIM(pc.razon_social), ''), CONCAT(pc.primer_nombre, ' ', COALESCE(pc.segundo_nombre, ''), ' ', 
+                   pc.primer_apellido, ' ', COALESCE(pc.segundo_apellido, ''))) AS nombre_colaborador,
             pr.id_tipo_pago, 
             tp.nombre AS tipo_pago,
             pr.valor_recibido, 
@@ -277,19 +277,19 @@ class PagosRecibidos
             pr.fecha_registro, 
             pr.id_usuario_registro,
             u.usuario AS nombre_usuario_registro,
-            CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                   p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
+            COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                   p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
             pr.fecha_contabilizacion, 
             pr.id_usuario_contable,
             uc.usuario AS nombre_usuario_contable,
-            CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                   p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable,
+            COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                   p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable,
             pr.anulado,
             pr.fecha_anulacion,
             pr.id_usuario_anulacion,
             ua.usuario AS nombre_usuario_anulacion,
-            CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
-                   p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, '')) AS nombre_completo_usuario_anulacion
+            COALESCE(NULLIF(TRIM(p_ua.razon_social), ''), CONCAT(p_ua.primer_nombre, ' ', COALESCE(p_ua.segundo_nombre, ''), ' ', 
+                   p_ua.primer_apellido, ' ', COALESCE(p_ua.segundo_apellido, ''))) AS nombre_completo_usuario_anulacion
         FROM 
             pagos_recibidos pr
         LEFT JOIN 
@@ -316,13 +316,13 @@ class PagosRecibidos
             pr.id_colaborador = :id AND pr.id_tenant = :id_tenant
         GROUP BY 
             pr.id, pr.fecha, pr.id_colaborador, pr.id_representante, pc.primer_nombre, pc.segundo_nombre,
-            pc.primer_apellido, pc.segundo_apellido, pr.id_tipo_pago, tp.nombre,
+            pc.primer_apellido, pc.segundo_apellido, pc.razon_social, pr.id_tipo_pago, tp.nombre,
             pr.valor_recibido, pr.observaciones, pr.referencia_bancaria, 
             pr.fecha_registro, pr.id_usuario_registro, u.usuario, p_ur.primer_nombre, p_ur.segundo_nombre, 
-            p_ur.primer_apellido, p_ur.segundo_apellido, pr.fecha_contabilizacion, pr.id_usuario_contable, 
-            uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido,
+            p_ur.primer_apellido, p_ur.segundo_apellido, p_ur.razon_social, pr.fecha_contabilizacion, pr.id_usuario_contable, 
+            uc.usuario, p_uc.primer_nombre, p_uc.segundo_nombre, p_uc.primer_apellido, p_uc.segundo_apellido, p_uc.razon_social,
             pr.anulado, pr.fecha_anulacion, pr.id_usuario_anulacion, ua.usuario, p_ua.primer_nombre, 
-            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido
+            p_ua.segundo_nombre, p_ua.primer_apellido, p_ua.segundo_apellido, p_ua.razon_social
         ORDER BY pr.fecha DESC, pr.id DESC
     ");
 
@@ -587,10 +587,10 @@ class PagosRecibidos
                 pr.id_usuario_anulacion,
                 (pr.valor_recibido - COALESCE((SELECT SUM(valor_aplicado) FROM cuenta_pagada WHERE id_pago_recibido = pr.id), 0)) AS saldo,
                 tp.nombre AS tipo_pago_nombre,
-                CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                    p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
-                CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                    p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable
+                COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                    p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
+                COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                    p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable
             FROM 
                 pagos_recibidos pr
             LEFT JOIN 
@@ -619,10 +619,10 @@ class PagosRecibidos
         $sentenceCliente = $db->prepare("
             SELECT 
                 e.id,
-                CONCAT(p.primer_nombre, ' ', 
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', 
                     COALESCE(p.segundo_nombre, ''), ' ', 
                     p.primer_apellido, ' ', 
-                    COALESCE(p.segundo_apellido, '')) AS nombre,
+                    COALESCE(p.segundo_apellido, ''))) AS nombre,
                 p.numero_identificacion AS documento,
                 COALESCE((SELECT g.nombre FROM planes g 
                           JOIN clientes_x_planes exg ON g.id = exg.id_plan 
@@ -643,10 +643,10 @@ class PagosRecibidos
         $sentenceRepresentante = $db->prepare("
             SELECT 
                 a.id,
-                CONCAT(p.primer_nombre, ' ', 
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', 
                     COALESCE(p.segundo_nombre, ''), ' ', 
                     p.primer_apellido, ' ', 
-                    COALESCE(p.segundo_apellido, '')) AS nombre,
+                    COALESCE(p.segundo_apellido, ''))) AS nombre,
                 p.numero_identificacion AS documento,
                 ta.nombre AS tipo_representante
             FROM 
@@ -756,10 +756,10 @@ class PagosRecibidos
                     pr.id_usuario_anulacion,
                     (pr.valor_recibido - COALESCE((SELECT SUM(valor_aplicado) FROM cuenta_pagada WHERE id_pago_recibido = pr.id), 0)) AS saldo,
                     tp.nombre AS tipo_pago_nombre,
-                    CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                        p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro,
-                    CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
-                        p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, '')) AS nombre_completo_usuario_contable
+                    COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                        p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro,
+                    COALESCE(NULLIF(TRIM(p_uc.razon_social), ''), CONCAT(p_uc.primer_nombre, ' ', COALESCE(p_uc.segundo_nombre, ''), ' ', 
+                        p_uc.primer_apellido, ' ', COALESCE(p_uc.segundo_apellido, ''))) AS nombre_completo_usuario_contable
                 FROM 
                     pagos_recibidos pr
                 LEFT JOIN 
@@ -788,10 +788,10 @@ class PagosRecibidos
         $sentenceColaborador = $db->prepare("
                 SELECT 
                     c.id,
-                    CONCAT(p.primer_nombre, ' ', 
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', 
                         COALESCE(p.segundo_nombre, ''), ' ', 
                         p.primer_apellido, ' ', 
-                        COALESCE(p.segundo_apellido, '')) AS nombre,
+                        COALESCE(p.segundo_apellido, ''))) AS nombre,
                     p.numero_identificacion AS documento,
                     rc.nombre AS rol,
                     c.correo_electronico
@@ -890,19 +890,19 @@ class PagosRecibidos
                 pr.id_colaborador,
                 pr.id_representante, 
                 -- Nombre del cliente (si es pago de cliente)
-                CONCAT(p_est.primer_nombre, ' ', COALESCE(p_est.segundo_nombre, ''), ' ', 
-                       p_est.primer_apellido, ' ', COALESCE(p_est.segundo_apellido, '')) AS nombre_cliente,
+                COALESCE(NULLIF(TRIM(p_est.razon_social), ''), CONCAT(p_est.primer_nombre, ' ', COALESCE(p_est.segundo_nombre, ''), ' ', 
+                       p_est.primer_apellido, ' ', COALESCE(p_est.segundo_apellido, ''))) AS nombre_cliente,
                 -- Nombre del colaborador (si es pago de colaborador)
-                CONCAT(p_col.primer_nombre, ' ', COALESCE(p_col.segundo_nombre, ''), ' ', 
-                       p_col.primer_apellido, ' ', COALESCE(p_col.segundo_apellido, '')) AS nombre_colaborador,
+                COALESCE(NULLIF(TRIM(p_col.razon_social), ''), CONCAT(p_col.primer_nombre, ' ', COALESCE(p_col.segundo_nombre, ''), ' ', 
+                       p_col.primer_apellido, ' ', COALESCE(p_col.segundo_apellido, ''))) AS nombre_colaborador,
                 -- Tipo de persona (para identificar si es cliente o colaborador)
                 CASE 
                     WHEN pr.id_cliente IS NOT NULL THEN 'Cliente'
                     WHEN pr.id_colaborador IS NOT NULL THEN 'Colaborador'
                     ELSE 'Desconocido'
                 END AS tipo_persona,
-                CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_representante,
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
+                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, ''))) AS nombre_representante,
                 ta.nombre AS tipo_representante,
                 pr.id_tipo_pago, 
                 tp.nombre AS tipo_pago,
@@ -914,8 +914,8 @@ class PagosRecibidos
                 pr.fecha_registro, 
                 pr.id_usuario_registro,
                 u.usuario AS nombre_usuario_registro,
-                CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
-                       p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, '')) AS nombre_completo_usuario_registro
+                COALESCE(NULLIF(TRIM(p_ur.razon_social), ''), CONCAT(p_ur.primer_nombre, ' ', COALESCE(p_ur.segundo_nombre, ''), ' ', 
+                       p_ur.primer_apellido, ' ', COALESCE(p_ur.segundo_apellido, ''))) AS nombre_completo_usuario_registro
             FROM 
                 pagos_recibidos pr
             -- Join para clientes
@@ -950,12 +950,12 @@ class PagosRecibidos
                 AND pr.id_tenant = :id_tenant
             GROUP BY 
                 pr.id, pr.fecha, pr.id_cliente, pr.id_colaborador, pr.id_representante,
-                p_est.primer_nombre, p_est.segundo_nombre, p_est.primer_apellido, p_est.segundo_apellido,
-                p_col.primer_nombre, p_col.segundo_nombre, p_col.primer_apellido, p_col.segundo_apellido,
-                p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+                p_est.primer_nombre, p_est.segundo_nombre, p_est.primer_apellido, p_est.segundo_apellido, p_est.razon_social,
+                p_col.primer_nombre, p_col.segundo_nombre, p_col.primer_apellido, p_col.segundo_apellido, p_col.razon_social,
+                p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social, 
                 ta.nombre, pr.id_tipo_pago, tp.nombre, pr.valor_recibido, pr.observaciones, 
                 pr.referencia_bancaria, pr.fecha_registro, pr.id_usuario_registro, u.usuario, 
-                p_ur.primer_nombre, p_ur.segundo_nombre, p_ur.primer_apellido, p_ur.segundo_apellido
+                p_ur.primer_nombre, p_ur.segundo_nombre, p_ur.primer_apellido, p_ur.segundo_apellido, p_ur.razon_social
             ORDER BY 
                 pr.fecha DESC, pr.id DESC
         ");
@@ -1086,8 +1086,8 @@ class PagosRecibidos
                 SELECT DISTINCT
                     e.id AS id_cliente,
                     e.id_persona,
-                    CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
-                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_cliente,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', 
+                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_cliente,
                     p.numero_identificacion,
                     IFNULL(g.nombre, 'Sin plan') AS plan_cliente
                 FROM clientes e
@@ -1142,8 +1142,8 @@ class PagosRecibidos
                     a.id AS id_representante,
                     a.id_cliente,
                     a.id_persona AS id_persona_representante,
-                    CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ',
-                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_representante,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ',
+                           IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_representante,
                     ta.nombre AS tipo_representante,
                     p.telefono,
                     p.correo_electronico
@@ -1659,8 +1659,8 @@ class PagosRecibidos
                         pr.id_tipo_pago,
                         tp.nombre AS tipo_pago,
                         pr.referencia_bancaria,
-                        CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente
+                        COALESCE(NULLIF(TRIM(pe.razon_social), ''), CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, ''))) AS nombre_cliente
                     FROM pagos_recibidos pr
                     LEFT JOIN clientes e ON pr.id_cliente = e.id
                     LEFT JOIN personas pe ON e.id_persona = pe.id
@@ -1700,8 +1700,8 @@ class PagosRecibidos
                         pr.id_tipo_pago,
                         tp.nombre AS tipo_pago,
                         pr.referencia_bancaria,
-                        CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
-                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, '')) AS nombre_cliente
+                        COALESCE(NULLIF(TRIM(pe.razon_social), ''), CONCAT(pe.primer_nombre, ' ', COALESCE(pe.segundo_nombre, ''), ' ', 
+                               pe.primer_apellido, ' ', COALESCE(pe.segundo_apellido, ''))) AS nombre_cliente
                     FROM pagos_recibidos pr
                     LEFT JOIN clientes e ON pr.id_cliente = e.id
                     LEFT JOIN personas pe ON e.id_persona = pe.id

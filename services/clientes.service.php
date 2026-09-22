@@ -11,7 +11,8 @@ class Clientes
         e.alimentacion, e.permanente, e.telefono_emergencia, e.eps, e.anno,
         p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
         p.id_tipo_identificacion, ti.nombre tipo_identificacion,
-        p.numero_identificacion, p.fecha_nacimiento, p.id_genero, g.nombre nombre_genero, p.direccion 
+        p.numero_identificacion, p.digito_verificacion, p.razon_social,
+        p.fecha_nacimiento, p.id_genero, g.nombre nombre_genero, p.direccion 
         FROM clientes e 
         INNER JOIN personas p ON e.id_persona = p.id
         INNER JOIN tipos_identificacion ti ON p.id_tipo_identificacion = ti.id
@@ -43,6 +44,8 @@ class Clientes
                p.id_tipo_identificacion, 
                ti.nombre AS tipo_identificacion,
                p.numero_identificacion, 
+               p.digito_verificacion,
+               p.razon_social,
                p.fecha_nacimiento, 
                TIMESTAMPDIFF(YEAR, p.fecha_nacimiento, CURDATE()) AS edad,
                p.id_genero, 
@@ -50,7 +53,7 @@ class Clientes
                p.direccion,
                grp.id AS id_plan, 
                grp.nombre AS nombre_plan,
-               CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) AS nombre_completo
+               COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_completo
         FROM clientes e 
         INNER JOIN personas p ON e.id_persona = p.id
         INNER JOIN tipos_identificacion ti ON p.id_tipo_identificacion = ti.id
@@ -195,7 +198,7 @@ class Clientes
     {
         $db = Flight::db();
         $sentence = $db->prepare("SELECT exg.id, exg.anio, exg.id_cliente, 
-                                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+                                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                                  exg.id_plan, g.nombre AS nombre_plan, e.activo, e.alimentacion,
                                  e.telefono_emergencia, e.eps, e.fecha_ingreso, e.anno
                                  FROM clientes_x_planes exg
@@ -216,7 +219,7 @@ class Clientes
     {
         $db = Flight::db();
         $sentence = $db->prepare("SELECT exg.id, exg.anio, exg.id_cliente, 
-                                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, 
+                                 p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                                  exg.id_plan, g.nombre nombre_plan, e.activo, e.alimentacion,
                                  e.telefono_emergencia, e.eps, e.anno
                                  FROM clientes_x_planes exg
@@ -224,7 +227,7 @@ class Clientes
                                  INNER JOIN personas p ON e.id_persona = p.id 
                                  INNER JOIN planes g ON exg.id_plan = g.id 
                                  WHERE e.activo = 1 AND exg.activo = 1 AND exg.id_tenant = :id_tenant
-                                 ORDER BY g.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido");
+                                 ORDER BY g.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido");
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
         $response = $sentence->fetchAll();
@@ -405,10 +408,12 @@ class Clientes
                     p.segundo_nombre,
                     p.primer_apellido,
                     p.segundo_apellido,
-                    CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
+                    p.razon_social,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_completo,
                     p.id_tipo_identificacion,
                     ti.nombre AS tipo_identificacion,
                     p.numero_identificacion,
+                    p.digito_verificacion,
                     p.fecha_nacimiento,
                     TIMESTAMPDIFF(YEAR, p.fecha_nacimiento, CURDATE()) AS edad,
                     p.id_genero,
@@ -562,7 +567,7 @@ class Clientes
                 LEFT JOIN planes grp ON eg.id_plan = grp.id
                 LEFT JOIN tmp_cartera tc ON tc.id_persona = e.id_persona
                 WHERE e.id_tenant = :id_tenant
-                ORDER BY grp.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido
+                ORDER BY grp.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido
             ");
 
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -1057,10 +1062,12 @@ class Clientes
                     p.segundo_nombre,
                     p.primer_apellido,
                     p.segundo_apellido,
-                    CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
+                    p.razon_social,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(IFNULL(p.primer_nombre, ''), ' ', IFNULL(p.segundo_nombre, ''), ' ', IFNULL(p.primer_apellido, ''), ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_completo,
                     p.id_tipo_identificacion,
                     ti.nombre AS tipo_identificacion,
                     p.numero_identificacion,
+                    p.digito_verificacion,
                     p.fecha_nacimiento,
                     TIMESTAMPDIFF(YEAR, p.fecha_nacimiento, CURDATE()) AS edad,
                     p.id_genero,
@@ -1216,7 +1223,7 @@ class Clientes
                 LEFT JOIN planes grp ON eg.id_plan = grp.id
                 LEFT JOIN tmp_cartera tc ON tc.id_persona = e.id_persona
                 WHERE e.id_tenant = :id_tenant
-                ORDER BY grp.orden, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido
+                ORDER BY grp.orden, COALESCE(NULLIF(TRIM(p.razon_social), ''), p.primer_nombre), p.segundo_nombre, p.primer_apellido, p.segundo_apellido
             ");
 
             $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -1241,12 +1248,12 @@ class Clientes
                     a.id AS id_representante,
                     a.id_cliente,
                     e.id_persona AS id_persona,
-                    TRIM(CONCAT(
+                    COALESCE(NULLIF(TRIM(pest.razon_social), ''), TRIM(CONCAT(
                         IFNULL(pest.primer_nombre, ''), ' ', 
                         IFNULL(pest.segundo_nombre, ''), ' ', 
                         IFNULL(pest.primer_apellido, ''), ' ', 
                         IFNULL(pest.segundo_apellido, '')
-                    )) AS nombre_cliente,
+                    ))) AS nombre_cliente,
                     a.id_tipo_representante,
                     ta.nombre AS nombre_tipo_representante,
                     a.id_persona AS id_persona_representante,
@@ -1290,29 +1297,30 @@ class Clientes
     }
 
     /**
-     * Lee la foto/archivo de un registro civil colombiano con IA y devuelve los
-     * datos del niño y de sus padres en JSON, para prellenar el registro rápido.
-     * NO crea nada en la BD: solo lee y devuelve. El usuario revisa y completa
-     * en el asistente antes de guardar (registroRapidoCompleto).
+     * Lee la foto/archivo del RUT (formulario 001 de la DIAN) con IA y devuelve
+     * los datos del cliente (razón social o nombres, NIT, DV, ubicación y
+     * contacto) y del representante legal principal, para prellenar el registro
+     * rápido. NO crea nada en la BD: solo lee y devuelve. El usuario revisa y
+     * completa en el asistente antes de guardar (registroRapidoCompleto).
      *
-     * POST /clientes/analizar-registro-civil  (multipart, campo 'registro_civil')
+     * POST /clientes/analizar-rut  (multipart, campo 'rut')
      *
      * La cadena de proveedores, reintentos y registro de uso los maneja IaVision;
      * aquí solo se arma el prompt e interpreta el texto (mismo patrón que
      * Pagos::analizarComprobante).
      */
-    public static function analizarRegistroCivil()
+    public static function analizarRut()
     {
         $userData = JWTService::requerirAutenticacion();
         PermisosService::validar($userData, 'clientes.administrar');
 
         try {
-            if (!isset($_FILES['registro_civil']) || $_FILES['registro_civil']['error'] !== UPLOAD_ERR_OK) {
+            if (!isset($_FILES['rut']) || $_FILES['rut']['error'] !== UPLOAD_ERR_OK) {
                 Flight::json(array('error' => 'No se recibió el archivo o hubo un error al subirlo'), 400);
                 return;
             }
 
-            $archivo = $_FILES['registro_civil'];
+            $archivo = $_FILES['rut'];
             $extension = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
 
             $extensiones_permitidas = ['pdf', 'jpg', 'jpeg', 'png'];
@@ -1352,44 +1360,44 @@ class Clientes
             $esPdf = ($extension === 'pdf');
             $mimeType = $esPdf ? 'application/pdf' : 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
 
-            // El registro civil colombiano trae al inscrito (el niño) y a sus padres.
-            // Del niño se toma el NUIP (número único de identificación personal, arriba
-            // del documento), NO el serial/indicativo. El sexo y los tipos de documento
-            // se resuelven a id en el backend por nombre; aquí solo se extrae el texto.
-            $prompt = "Analiza este REGISTRO CIVIL DE NACIMIENTO colombiano y extrae ÚNICAMENTE los siguientes datos en formato JSON estricto. "
+            // El RUT trae en la hoja 1 la identificación (NIT casilla 5, DV casilla 6,
+            // razón social casilla 35 o nombres casillas 31-34) y la ubicación
+            // (casillas 38 a 45); en la hoja 3 la representación legal (casillas 98
+            // a 107). Los tipos de documento y la ciudad se resuelven a id en el
+            // front por nombre; aquí solo se extrae el texto.
+            $prompt = "Analiza este RUT (Formulario del Registro Único Tributario, formulario 001 de la DIAN, Colombia) y extrae ÚNICAMENTE los siguientes datos en formato JSON estricto. "
                 . "No incluyas explicaciones ni texto adicional, SOLO el JSON:\n\n"
                 . "{\n"
-                . "  \"nino\": {\n"
+                . "  \"tipo_contribuyente\": (\"juridica\", \"natural\" o null, según la casilla 24),\n"
+                . "  \"nit\": (string con el NIT de la casilla 5, solo dígitos, SIN el dígito de verificación, o null),\n"
+                . "  \"digito_verificacion\": (string de un dígito de la casilla 6 'DV', o null),\n"
+                . "  \"razon_social\": (string de la casilla 35, o null si es persona natural),\n"
+                . "  \"primer_nombre\": (string de la casilla 33, o null),\n"
+                . "  \"segundo_nombre\": (string de la casilla 34, o null),\n"
+                . "  \"primer_apellido\": (string de la casilla 31, o null),\n"
+                . "  \"segundo_apellido\": (string de la casilla 32, o null),\n"
+                . "  \"direccion\": (string de la casilla 41, o null),\n"
+                . "  \"ciudad\": (string con el nombre de la ciudad/municipio de la casilla 40, o null),\n"
+                . "  \"departamento\": (string con el nombre del departamento de la casilla 39, o null),\n"
+                . "  \"correo_electronico\": (string de la casilla 42, o null),\n"
+                . "  \"telefono\": (string de la casilla 44, solo dígitos, o null),\n"
+                . "  \"representante_legal\": {\n"
                 . "    \"primer_nombre\": (string o null),\n"
                 . "    \"segundo_nombre\": (string o null),\n"
                 . "    \"primer_apellido\": (string o null),\n"
                 . "    \"segundo_apellido\": (string o null),\n"
-                . "    \"numero_identificacion\": (string con el NUIP del inscrito, solo dígitos, o null),\n"
-                . "    \"fecha_nacimiento\": (string en formato YYYY-MM-DD o null),\n"
-                . "    \"sexo\": (\"Masculino\", \"Femenino\" o null)\n"
-                . "  },\n"
-                . "  \"padre\": {\n"
-                . "    \"primer_nombre\": (string o null),\n"
-                . "    \"segundo_nombre\": (string o null),\n"
-                . "    \"primer_apellido\": (string o null),\n"
-                . "    \"segundo_apellido\": (string o null),\n"
-                . "    \"numero_identificacion\": (string con el documento del padre, solo dígitos, o null)\n"
-                . "  },\n"
-                . "  \"madre\": {\n"
-                . "    \"primer_nombre\": (string o null),\n"
-                . "    \"segundo_nombre\": (string o null),\n"
-                . "    \"primer_apellido\": (string o null),\n"
-                . "    \"segundo_apellido\": (string o null),\n"
-                . "    \"numero_identificacion\": (string con el documento de la madre, solo dígitos, o null)\n"
+                . "    \"tipo_documento\": (string, por ejemplo \"Cedula\", o null),\n"
+                . "    \"numero_identificacion\": (string, solo dígitos, o null)\n"
                 . "  }\n"
                 . "}\n\n"
                 . "Reglas:\n"
-                . "- El NUIP es el número que aparece rotulado como 'NUIP' en la parte superior del documento (por ejemplo 1.072.680.919). NO uses el 'Serial' ni el 'Indicativo Serial'.\n"
+                . "- El NIT y el DV van por separado: el NIT es la casilla 5 y el DV la casilla 6. No pegues el DV al NIT.\n"
+                . "- representante_legal es el de la hoja de Representación marcado como representante legal PRINCIPAL (REPRS LEGAL PRIN). Ignora el suplente.\n"
+                . "- Si es persona natural o el documento no trae hoja de Representación, devuelve representante_legal con todos sus campos en null.\n"
                 . "- Si un campo no aparece o no es legible, usa null.\n"
-                . "- Si el padre o la madre no aparecen en el documento, devuelve ese objeto con todos sus campos en null.\n"
-                . "- numero_identificacion: devuelve solo los dígitos, sin puntos ni espacios.";
+                . "- numero_identificacion, nit y telefono: devuelve solo los dígitos, sin puntos ni espacios.";
 
-            // Se sube el límite de tokens porque la respuesta trae niño + 2 padres,
+            // Se sube el límite de tokens porque la respuesta trae cliente + representante,
             // más larga que un comprobante (que usa el default de 500 en IaVision).
             $resultado = IaVision::extraerDeImagen($config, $base64, $mimeType, $prompt, $esPdf, 1200);
 
@@ -1397,7 +1405,7 @@ class Clientes
             IaVision::registrarUso($db, TenantContext::id(), $resultado);
 
             if (!$resultado['success']) {
-                Flight::json(array('error' => 'No se pudo analizar el registro civil con ningún proveedor de IA: ' . $resultado['error']), 503);
+                Flight::json(array('error' => 'No se pudo analizar el RUT con ningún proveedor de IA: ' . $resultado['error']), 503);
                 return;
             }
 
@@ -1411,7 +1419,7 @@ class Clientes
 
             if (!$datosExtraidos) {
                 Flight::json(array(
-                    'error' => 'No se pudieron extraer los datos del registro civil',
+                    'error' => 'No se pudieron extraer los datos del RUT',
                     'respuesta_ia' => $textoRespuesta
                 ), 422);
                 return;
@@ -1430,37 +1438,44 @@ class Clientes
                 $stmtTokens->execute();
             }
 
+            // DV calculado con el algoritmo de la DIAN, para que el front avise si
+            // no coincide con el leído (casi siempre indica un dígito del NIT mal leído).
+            $datosExtraidos['digito_verificacion_calculado'] = !empty($datosExtraidos['nit'])
+                ? Personas::calcularDigitoVerificacion($datosExtraidos['nit'])
+                : null;
+
             Flight::json(array(
                 'success' => true,
                 'datos' => $datosExtraidos,
                 'proveedor' => $resultado['proveedor']
             ));
         } catch (Exception $e) {
-            error_log("Error en analizarRegistroCivil: " . $e->getMessage());
-            Flight::json(array('error' => 'Error interno al procesar el registro civil: ' . $e->getMessage()), 500);
+            error_log("Error en analizarRut: " . $e->getMessage());
+            Flight::json(array('error' => 'Error interno al procesar el RUT: ' . $e->getMessage()), 500);
         }
     }
 
     /**
-     * Registro rápido COMPLETO desde el asistente de registro civil.
-     * En una sola transacción crea: persona del niño, cliente, asignación de
-     * plan (con grado opcional), horarios del cliente, y por cada representante
+     * Registro rápido COMPLETO desde el asistente de lectura del RUT.
+     * En una sola transacción crea: persona del cliente (el payload conserva la
+     * llave 'nino' por compatibilidad), cliente, asignación de
+     * plan, y por cada representante
      * presente su persona + representante. Los usuarios del portal de padres NO se
      * crean aquí: el front los crea en un segundo llamado a POST /usuarios con los
      * id_persona que devuelve este método.
      *
      * A diferencia de registroRapido() (usado por el módulo de asistencia, un solo
-     * representante y sin grado/horario), este método asigna grado y horarios y admite
-     * varios representantes. registroRapido() NO se modifica.
+     * representante), este método admite varios representantes.
+     * registroRapido() NO se modifica.
      *
      * POST /clientes/registro-rapido-completo
      *
      * Body (JSON): {
-     *   nino: { id_tipo_identificacion, numero_identificacion, primer_nombre,
-     *           segundo_nombre, primer_apellido, segundo_apellido,
-     *           fecha_nacimiento, id_genero, fecha_ingreso },
+     *   nino: { id_tipo_identificacion, numero_identificacion, digito_verificacion,
+     *           razon_social, primer_nombre, segundo_nombre, primer_apellido,
+     *           segundo_apellido, fecha_nacimiento, id_genero, direccion,
+     *           id_ciudad, telefono, correo_electronico, fecha_ingreso },
      *   id_plan, anno (opcional),
-     *   horarios: [ { id_dia_semana, hora_entrada, hora_salida } ] (opcional),
      *   representantes: [ {
      *       id_tipo_identificacion, numero_identificacion, primer_nombre,
      *       segundo_nombre, primer_apellido, segundo_apellido,
@@ -1481,18 +1496,28 @@ class Clientes
             $nino = isset($data['nino']) ? $data['nino'] : null;
             $id_plan = isset($data['id_plan']) ? $data['id_plan'] : null;
             $anno = isset($data['anno']) && $data['anno'] ? $data['anno'] : date('Y');
-            $horarios = isset($data['horarios']) ? $data['horarios'] : array();
             $representantes = isset($data['representantes']) ? $data['representantes'] : array();
 
-            // Validaciones mínimas: el niño y su documento son obligatorios (como toda
+            // Validaciones mínimas: el cliente y su documento son obligatorios (como toda
             // persona), y debe venir al menos un representante. El plan es obligatorio
             // porque el cliente nace asignado a un plan.
             if (!$nino || empty($nino['numero_identificacion'])) {
-                Flight::json(array('error' => 'Faltan los datos del niño o su número de identificación'), 400);
+                Flight::json(array('error' => 'Faltan los datos del cliente o su número de identificación'), 400);
                 return;
             }
             if (empty($nino['id_tipo_identificacion'])) {
-                Flight::json(array('error' => 'Falta el tipo de identificación del niño'), 400);
+                Flight::json(array('error' => 'Falta el tipo de identificación del cliente'), 400);
+                return;
+            }
+            // Un cliente empresa (NIT) se identifica por su razón social; una persona
+            // natural por sus nombres.
+            if (Personas::esTipoNit($db, $nino['id_tipo_identificacion'])) {
+                if (empty($nino['razon_social'])) {
+                    Flight::json(array('error' => 'Falta la razón social del cliente'), 400);
+                    return;
+                }
+            } elseif (empty($nino['primer_nombre']) || empty($nino['primer_apellido'])) {
+                Flight::json(array('error' => 'El cliente debe tener al menos primer nombre y primer apellido'), 400);
                 return;
             }
             if (!$id_plan) {
@@ -1515,21 +1540,25 @@ class Clientes
             $idTenant = TenantContext::id();
 
             // ============================================================
-            // 1. PERSONA DEL NIÑO: buscar o crear
+            // 1. PERSONA DEL CLIENTE: buscar o crear
             // ============================================================
             $id_persona_nino = self::buscarOCrearPersona($db, $idTenant, array(
                 'id_tipo_identificacion' => $nino['id_tipo_identificacion'],
                 'numero_identificacion'  => $nino['numero_identificacion'],
+                'digito_verificacion'    => isset($nino['digito_verificacion']) ? $nino['digito_verificacion'] : null,
+                'razon_social'           => isset($nino['razon_social']) ? $nino['razon_social'] : null,
                 'primer_nombre'          => isset($nino['primer_nombre']) ? $nino['primer_nombre'] : null,
                 'segundo_nombre'         => isset($nino['segundo_nombre']) ? $nino['segundo_nombre'] : null,
                 'primer_apellido'        => isset($nino['primer_apellido']) ? $nino['primer_apellido'] : null,
                 'segundo_apellido'       => isset($nino['segundo_apellido']) ? $nino['segundo_apellido'] : null,
                 'fecha_nacimiento'       => isset($nino['fecha_nacimiento']) ? $nino['fecha_nacimiento'] : null,
                 'id_genero'              => isset($nino['id_genero']) ? $nino['id_genero'] : null,
+                'direccion'              => isset($nino['direccion']) ? $nino['direccion'] : null,
+                'id_ciudad'              => isset($nino['id_ciudad']) ? $nino['id_ciudad'] : null,
                 'nacionalidad'           => 'Colombiana',
                 'ocupacion'              => 'Cliente',
-                'telefono'               => null,
-                'correo_electronico'     => null,
+                'telefono'               => isset($nino['telefono']) ? $nino['telefono'] : null,
+                'correo_electronico'     => isset($nino['correo_electronico']) ? $nino['correo_electronico'] : null,
             ));
 
             // ============================================================
@@ -1655,10 +1684,12 @@ class Clientes
                 'id_persona_nino' => $id_persona_nino,
                 'cliente_ya_existia' => $cliente_ya_existia,
                 'representantes' => $representantesCreados,
-                'nombre_cliente' => trim(
-                    (isset($nino['primer_nombre']) ? $nino['primer_nombre'] : '') . ' ' .
-                    (isset($nino['primer_apellido']) ? $nino['primer_apellido'] : '')
-                )
+                'nombre_cliente' => !empty($nino['razon_social'])
+                    ? trim($nino['razon_social'])
+                    : trim(
+                        (isset($nino['primer_nombre']) ? $nino['primer_nombre'] : '') . ' ' .
+                        (isset($nino['primer_apellido']) ? $nino['primer_apellido'] : '')
+                    )
             ));
         } catch (Exception $e) {
             if ($db->inTransaction()) {
@@ -1673,7 +1704,9 @@ class Clientes
      * Busca una persona por tipo y número de identificación dentro del tenant; si
      * existe devuelve su id (y completa teléfono/correo si estaban vacíos y llegan
      * ahora), y si no existe la crea. Usada por registroRapidoCompleto para no
-     * duplicar personas al registrar niño y representantes.
+     * duplicar personas al registrar el cliente y sus representantes.
+     * Si el tipo es NIT, el número se busca y guarda solo con dígitos, y el DV
+     * es el recibido (RUT) o el calculado (Personas::normalizarIdentificacion).
      *
      * @param PDO   $db
      * @param int   $idTenant
@@ -1682,6 +1715,14 @@ class Clientes
      */
     private static function buscarOCrearPersona($db, $idTenant, $p)
     {
+        list($p['numero_identificacion'], $p['digito_verificacion']) = Personas::normalizarIdentificacion(
+            $db,
+            $p['id_tipo_identificacion'],
+            $p['numero_identificacion'],
+            isset($p['digito_verificacion']) ? $p['digito_verificacion'] : null
+        );
+        $p['razon_social'] = isset($p['razon_social']) && trim((string) $p['razon_social']) !== '' ? trim($p['razon_social']) : null;
+
         $stmt = $db->prepare("SELECT id FROM personas WHERE id_tipo_identificacion = :tipo AND numero_identificacion = :numero AND id_tenant = :id_tenant");
         $stmt->bindValue(':id_tenant', $idTenant, PDO::PARAM_INT);
         $stmt->bindValue(':tipo', $p['id_tipo_identificacion']);
@@ -1706,29 +1747,50 @@ class Clientes
                 $up->bindValue(':id', $existente['id']);
                 $up->execute();
             }
+            if (!empty($p['razon_social'])) {
+                $up = $db->prepare("UPDATE personas SET razon_social = :razon_social WHERE id = :id AND id_tenant = :id_tenant AND (razon_social IS NULL OR razon_social = '')");
+                $up->bindValue(':id_tenant', $idTenant, PDO::PARAM_INT);
+                $up->bindValue(':razon_social', $p['razon_social']);
+                $up->bindValue(':id', $existente['id']);
+                $up->execute();
+            }
+            if (!empty($p['digito_verificacion'])) {
+                $up = $db->prepare("UPDATE personas SET digito_verificacion = :dv WHERE id = :id AND id_tenant = :id_tenant AND (digito_verificacion IS NULL OR digito_verificacion = '')");
+                $up->bindValue(':id_tenant', $idTenant, PDO::PARAM_INT);
+                $up->bindValue(':dv', $p['digito_verificacion']);
+                $up->bindValue(':id', $existente['id']);
+                $up->execute();
+            }
             return $existente['id'];
         }
 
         $id = Uuid::generar();
         $stmt = $db->prepare("INSERT INTO personas (
                 id, id_tenant, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-                id_tipo_identificacion, numero_identificacion, nacionalidad, fecha_nacimiento,
-                id_genero, correo_electronico, telefono, ocupacion
+                id_tipo_identificacion, numero_identificacion, digito_verificacion, razon_social,
+                nacionalidad, fecha_nacimiento, id_genero, direccion, id_ciudad,
+                correo_electronico, telefono, ocupacion
             ) VALUES (
                 :id, :id_tenant, :primer_nombre, :segundo_nombre, :primer_apellido, :segundo_apellido,
-                :id_tipo_identificacion, :numero_identificacion, :nacionalidad, :fecha_nacimiento,
-                :id_genero, :correo_electronico, :telefono, :ocupacion
+                :id_tipo_identificacion, :numero_identificacion, :digito_verificacion, :razon_social,
+                :nacionalidad, :fecha_nacimiento, :id_genero, :direccion, :id_ciudad,
+                :correo_electronico, :telefono, :ocupacion
             )");
         $stmt->bindValue(':id', $id);
         $stmt->bindValue(':id_tenant', $idTenant, PDO::PARAM_INT);
-        $stmt->bindValue(':primer_nombre', $p['primer_nombre']);
-        $stmt->bindValue(':segundo_nombre', $p['segundo_nombre']);
-        $stmt->bindValue(':primer_apellido', $p['primer_apellido']);
-        $stmt->bindValue(':segundo_apellido', $p['segundo_apellido']);
+        // Cliente empresa: el nombre vive solo en razon_social, los nombres quedan en NULL.
+        $stmt->bindValue(':primer_nombre', $p['razon_social'] ? null : $p['primer_nombre']);
+        $stmt->bindValue(':segundo_nombre', $p['razon_social'] ? null : $p['segundo_nombre']);
+        $stmt->bindValue(':primer_apellido', $p['razon_social'] ? null : $p['primer_apellido']);
+        $stmt->bindValue(':segundo_apellido', $p['razon_social'] ? null : $p['segundo_apellido']);
         $stmt->bindValue(':id_tipo_identificacion', $p['id_tipo_identificacion']);
         $stmt->bindValue(':numero_identificacion', $p['numero_identificacion']);
+        $stmt->bindValue(':digito_verificacion', $p['digito_verificacion']);
+        $stmt->bindValue(':razon_social', $p['razon_social']);
+        $stmt->bindValue(':direccion', isset($p['direccion']) && $p['direccion'] !== '' ? $p['direccion'] : null);
+        $stmt->bindValue(':id_ciudad', isset($p['id_ciudad']) && $p['id_ciudad'] !== '' ? $p['id_ciudad'] : null);
         $stmt->bindValue(':nacionalidad', isset($p['nacionalidad']) ? $p['nacionalidad'] : 'Colombiana');
-        $stmt->bindValue(':fecha_nacimiento', $p['fecha_nacimiento']);
+        $stmt->bindValue(':fecha_nacimiento', $p['fecha_nacimiento'] ? $p['fecha_nacimiento'] : null);
         $stmt->bindValue(':id_genero', $p['id_genero'] ? $p['id_genero'] : null);
         $stmt->bindValue(':correo_electronico', $p['correo_electronico']);
         $stmt->bindValue(':telefono', $p['telefono']);

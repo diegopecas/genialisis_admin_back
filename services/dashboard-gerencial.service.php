@@ -136,7 +136,7 @@ class DashboardGerencial
                     p.segundo_nombre,
                     p.primer_apellido,
                     p.segundo_apellido,
-                    TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_completo,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_completo,
                     car.nombre AS nombre_cargo,
                     hc.hora_entrada AS hora_entrada_esperada,
                     hc.hora_salida AS hora_salida_esperada,
@@ -417,7 +417,7 @@ class DashboardGerencial
                         WHEN pr.id_representante IS NOT NULL THEN 'Representante'
                         ELSE 'Otro'
                     END AS tipo_persona,
-                    TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_persona
                 FROM pagos_recibidos pr
                 INNER JOIN tipos_pagos tp ON pr.id_tipo_pago = tp.id AND tp.es_ingreso = 1
                 LEFT JOIN clientes e ON pr.id_cliente = e.id
@@ -502,7 +502,7 @@ class DashboardGerencial
     {
             $sql = "SELECT 
                     p.id AS id_persona,
-                    TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona,
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_persona,
                     p.numero_identificacion,
                     CASE
                         WHEN e.id IS NOT NULL THEN 'Cliente'
@@ -549,7 +549,7 @@ class DashboardGerencial
                     HAVING saldo > 0
                 ) sub ON sub.id_persona = p.id
                 WHERE p.id_tenant = " . TenantContext::id() . "
-                GROUP BY p.id, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
+                GROUP BY p.id, p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                          p.numero_identificacion, e.id, e.activo, g.nombre, col.id, col.activo, ca.nombre
                 ORDER BY saldo_vencido DESC, saldo_pendiente DESC";
 

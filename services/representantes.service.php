@@ -38,7 +38,7 @@ class Representantes
                                   a.autorizado_sistema,
                                   a.activo,
                                   ta.nombre AS nombre_tipo_representante,
-                                  TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona,
+                                  COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido))) AS nombre_persona,
                                   p.numero_identificacion AS documento_representante,
                                   p.correo_electronico,
                                   p.foto
@@ -170,7 +170,7 @@ class Representantes
                               a.autorizado_sistema,
                               a.activo,
                               ta.nombre AS nombre_tipo_representante,
-                              CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) AS nombre_persona,
+                              COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_persona,
                               p.numero_identificacion AS documento_representante,
                               u.id as id_usuario,
                               u.usuario,
@@ -271,7 +271,7 @@ class Representantes
                             p.direccion,
                             grp.id AS id_plan,
                             grp.nombre AS nombre_plan,
-                            CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', p.primer_apellido, ' ', IFNULL(p.segundo_apellido, '')) AS nombre_completo,
+                            COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', IFNULL(p.segundo_nombre, ''), ' ', p.primer_apellido, ' ', IFNULL(p.segundo_apellido, ''))) AS nombre_completo,
                             a.es_responsable_pago,
                             a.autorizado_recoger,
                             ta.nombre AS tipo_representante

@@ -18,6 +18,72 @@ class Personas
         return $valor === '' ? null : $valor;
     }
 
+    /**
+     * Calcula el dígito de verificación (DV) de un NIT con el algoritmo de la
+     * DIAN: módulo 11 sobre los dígitos del NIT con los pesos primos oficiales,
+     * de derecha a izquierda. Recibe el NIT sin DV; ignora puntos, guiones y
+     * espacios. Devuelve el DV como string de un dígito, o null si no hay dígitos.
+     */
+    public static function calcularDigitoVerificacion($nit)
+    {
+        $digitos = preg_replace('/\D/', '', (string) $nit);
+        if ($digitos === '') {
+            return null;
+        }
+
+        $pesos = array(3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71);
+        $suma = 0;
+        $invertido = strrev($digitos);
+        $largo = strlen($invertido);
+        for ($i = 0; $i < $largo && $i < count($pesos); $i++) {
+            $suma += intval($invertido[$i]) * $pesos[$i];
+        }
+
+        $residuo = $suma % 11;
+        return (string) ($residuo > 1 ? 11 - $residuo : $residuo);
+    }
+
+    /**
+     * Indica si el tipo de identificación es NIT. Se resuelve por nombre en
+     * tipos_identificacion (tabla global, sin id_tenant) para no quemar el id.
+     */
+    public static function esTipoNit($db, $id_tipo_identificacion)
+    {
+        if (!$id_tipo_identificacion) {
+            return false;
+        }
+
+        $sentence = $db->prepare("SELECT nombre FROM tipos_identificacion WHERE id = :id");
+        $sentence->bindValue(':id', $id_tipo_identificacion);
+        $sentence->execute();
+        $nombre = $sentence->fetchColumn();
+
+        return $nombre !== false && strtoupper(trim($nombre)) === 'NIT';
+    }
+
+    /**
+     * Normaliza el número y el DV de una identificación antes de guardarla.
+     * Si el tipo es NIT: el número queda solo con dígitos y el DV es el recibido
+     * (el que trae el RUT) cuando es un dígito válido, o el calculado si no llega.
+     * Para los demás tipos el número no se toca y el DV queda en null.
+     *
+     * @return array [numero_identificacion, digito_verificacion]
+     */
+    public static function normalizarIdentificacion($db, $id_tipo_identificacion, $numero_identificacion, $digito_verificacion = null)
+    {
+        if (!self::esTipoNit($db, $id_tipo_identificacion)) {
+            return array($numero_identificacion, null);
+        }
+
+        $numero = preg_replace('/\D/', '', (string) $numero_identificacion);
+        $dv = trim((string) $digito_verificacion);
+        if (!preg_match('/^\d$/', $dv)) {
+            $dv = self::calcularDigitoVerificacion($numero);
+        }
+
+        return array($numero, $dv);
+    }
+
     public static function getAll()
     {
         try {
@@ -141,7 +207,11 @@ class Personas
             $telefono = isset(Flight::request()->data['telefono']) ? Flight::request()->data['telefono'] : null;
             $ocupacion = isset(Flight::request()->data['ocupacion']) ? Flight::request()->data['ocupacion'] : null;
             $rh = isset(Flight::request()->data['rh']) ? Flight::request()->data['rh'] : null;
-            $razon_social = isset(Flight::request()->data['razon_social']) ? Flight::request()->data['razon_social'] : null;
+            $razon_social = self::normalizarTexto(isset(Flight::request()->data['razon_social']) ? Flight::request()->data['razon_social'] : null);
+            $digito_verificacion = isset(Flight::request()->data['digito_verificacion']) ? Flight::request()->data['digito_verificacion'] : null;
+
+            // NIT: número solo con dígitos y DV recibido (RUT) o calculado.
+            list($numero_identificacion, $digito_verificacion) = self::normalizarIdentificacion($db, $id_tipo_identificacion, $numero_identificacion, $digito_verificacion);
 
             error_log("Datos recibidos para crear: razon_social=$razon_social, primer_nombre=$primer_nombre, primer_apellido=$primer_apellido, numero_identificacion=$numero_identificacion");
 
@@ -167,7 +237,8 @@ class Personas
                 telefono,
                 ocupacion,
                 rh,
-                razon_social
+                razon_social,
+                digito_verificacion
             ) VALUES (
                 :id,
                 :id_tenant,
@@ -186,7 +257,8 @@ class Personas
                 :telefono,
                 :ocupacion,
                 :rh,
-                :razon_social
+                :razon_social,
+                :digito_verificacion
             )");
 
             // Vincular los parámetros
@@ -208,6 +280,7 @@ class Personas
             $sentence->bindParam(':ocupacion', $ocupacion);
             $sentence->bindParam(':rh', $rh);
             $sentence->bindParam(':razon_social', $razon_social);
+            $sentence->bindParam(':digito_verificacion', $digito_verificacion);
 
             // Ejecutar la sentencia
             $ok = $sentence->execute();
@@ -248,7 +321,8 @@ class Personas
             $telefono = isset(Flight::request()->data['telefono']) ? Flight::request()->data['telefono'] : null;
             $ocupacion = isset(Flight::request()->data['ocupacion']) ? Flight::request()->data['ocupacion'] : null;
             $rh = isset(Flight::request()->data['rh']) ? Flight::request()->data['rh'] : null;
-            $razon_social = isset(Flight::request()->data['razon_social']) ? Flight::request()->data['razon_social'] : null;
+            $razon_social = self::normalizarTexto(isset(Flight::request()->data['razon_social']) ? Flight::request()->data['razon_social'] : null);
+            $digito_verificacion = isset(Flight::request()->data['digito_verificacion']) ? Flight::request()->data['digito_verificacion'] : null;
 
             error_log("Datos recibidos para actualización: id=$id, razon_social=$razon_social, primer_nombre=$primer_nombre, numero_identificacion=$numero_identificacion");
 
@@ -257,6 +331,9 @@ class Personas
                 Flight::json(array('error' => 'Faltan datos obligatorios'), 400);
                 return;
             }
+
+            // NIT: número solo con dígitos y DV recibido (RUT) o calculado.
+            list($numero_identificacion, $digito_verificacion) = self::normalizarIdentificacion($db, $id_tipo_identificacion, $numero_identificacion, $digito_verificacion);
 
             // Preparar la sentencia SQL
             $sentence = $db->prepare("UPDATE personas SET 
@@ -275,7 +352,8 @@ class Personas
                 telefono = :telefono,
                 ocupacion = :ocupacion,
                 rh = :rh,
-                razon_social = :razon_social
+                razon_social = :razon_social,
+                digito_verificacion = :digito_verificacion
             WHERE id = :id AND id_tenant = :id_tenant");
 
             $sentence->bindParam(':id', $id);
@@ -296,6 +374,7 @@ class Personas
             $sentence->bindParam(':ocupacion', $ocupacion);
             $sentence->bindParam(':rh', $rh);
             $sentence->bindParam(':razon_social', $razon_social);
+            $sentence->bindParam(':digito_verificacion', $digito_verificacion);
 
             // Ejecutar la sentencia
             $sentence->execute();

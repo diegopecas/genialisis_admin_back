@@ -133,7 +133,7 @@ class CuentasPorCobrar
             ps.id_clasificacion_productos_servicios,
             cps.nombre AS nombre_clasificacion,
             cps.codigo AS clasificacion_codigo,
-            CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) AS nombre_usuario
+            COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre_usuario
         FROM 
             cuentas_por_cobrar cpc
         INNER JOIN 
@@ -156,7 +156,7 @@ class CuentasPorCobrar
             AND cpc.id_tenant = :id_tenant
         GROUP BY 
             cpc.id, cpc.fecha, cpc.valor, cpc.detalle, ps.nombre, cps.nombre, cps.codigo, 
-            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
+            p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
             cpc.anulado, cpc.fecha_anulacion, cpc.id_usuario_anulacion,
             ps.id_periodicidad_cobro, pc.id, pc.nombre
         ORDER BY 
@@ -425,22 +425,22 @@ class CuentasPorCobrar
                     ps.nombre AS nombre_producto_servicio,
                     ps.id_clasificacion_productos_servicios,
                     cps.nombre AS nombre_clasificacion,
-                    CONCAT(
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(
                         COALESCE(p.primer_nombre, ''), ' ',
                         COALESCE(p.segundo_nombre, ''), ' ',
                         COALESCE(p.primer_apellido, ''), ' ',
                         COALESCE(p.segundo_apellido, '')
-                    ) AS nombre_persona,
+                    )) AS nombre_persona,
                     p.numero_identificacion,
                     e.id AS id_cliente,
                     eg.id_plan,
                     g.nombre AS nombre_plan,
-                    CONCAT(
+                    COALESCE(NULLIF(TRIM(pu.razon_social), ''), CONCAT(
                         COALESCE(pu.primer_nombre, ''), ' ',
                         COALESCE(pu.segundo_nombre, ''), ' ',
                         COALESCE(pu.primer_apellido, ''), ' ',
                         COALESCE(pu.segundo_apellido, '')
-                    ) AS nombre_usuario
+                    )) AS nombre_usuario
                 FROM 
                     cuentas_por_cobrar c
                 LEFT JOIN 
@@ -471,9 +471,9 @@ class CuentasPorCobrar
                     c.detalle, c.id_usuario, c.anulado, c.fecha_anulacion, 
                     c.id_usuario_anulacion,
                     ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
-                    p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
+                    p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                     p.numero_identificacion, e.id, eg.id_plan, g.nombre,
-                    pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido
+                    pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido, pu.razon_social
                 ORDER BY 
                     c.fecha DESC, p.primer_apellido, p.primer_nombre
             ");
@@ -649,22 +649,22 @@ class CuentasPorCobrar
                 ps.nombre AS nombre_producto_servicio,
                 ps.id_clasificacion_productos_servicios,
                 cps.nombre AS nombre_clasificacion,
-                CONCAT(
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(
                     COALESCE(p.primer_nombre, ''), ' ',
                     COALESCE(p.segundo_nombre, ''), ' ',
                     COALESCE(p.primer_apellido, ''), ' ',
                     COALESCE(p.segundo_apellido, '')
-                ) AS nombre_persona,
+                )) AS nombre_persona,
                 p.numero_identificacion,
                 e.id AS id_cliente,
                 eg.id_plan,
                 g.nombre AS nombre_plan,
-                CONCAT(
+                COALESCE(NULLIF(TRIM(pu.razon_social), ''), CONCAT(
                     COALESCE(pu.primer_nombre, ''), ' ',
                     COALESCE(pu.segundo_nombre, ''), ' ',
                     COALESCE(pu.primer_apellido, ''), ' ',
                     COALESCE(pu.segundo_apellido, '')
-                ) AS nombre_usuario
+                )) AS nombre_usuario
             FROM 
                 cuentas_por_cobrar c
             LEFT JOIN 
@@ -696,9 +696,9 @@ class CuentasPorCobrar
                 c.detalle, c.id_usuario, c.anulado, c.fecha_anulacion, 
                 c.id_usuario_anulacion,
                 ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
-                p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
+                p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                 p.numero_identificacion, e.id, eg.id_plan, g.nombre,
-                pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido
+                pu.primer_nombre, pu.segundo_nombre, pu.primer_apellido, pu.segundo_apellido, pu.razon_social
             ORDER BY 
                 c.fecha DESC, p.primer_apellido, p.primer_nombre
         ");
@@ -820,8 +820,8 @@ class CuentasPorCobrar
                 ps.nombre AS nombre_producto_servicio,
                 ps.id_categoria_productos_servicios,
                 cps.nombre AS nombre_categoria,
-                CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
-                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, '')) AS nombre_persona,
+                COALESCE(NULLIF(TRIM(p.razon_social), ''), CONCAT(p.primer_nombre, ' ', COALESCE(p.segundo_nombre, ''), ' ', 
+                       p.primer_apellido, ' ', COALESCE(p.segundo_apellido, ''))) AS nombre_persona,
                 COALESCE((SELECT SUM(cp.valor_aplicado) 
                          FROM cuenta_pagada cp 
                          WHERE cp.id_cuenta_por_cobrar = cpc.id), 0) AS valor_pagado,
@@ -1104,12 +1104,12 @@ class CuentasPorCobrar
                     ps.nombre AS nombre_producto_servicio,
                     ps.id_clasificacion_productos_servicios,
                     cps.nombre AS nombre_clasificacion,
-                    TRIM(CONCAT(
+                    COALESCE(NULLIF(TRIM(p.razon_social), ''), TRIM(CONCAT(
                         COALESCE(p.primer_nombre, ''), ' ',
                         COALESCE(p.segundo_nombre, ''), ' ',
                         COALESCE(p.primer_apellido, ''), ' ',
                         COALESCE(p.segundo_apellido, '')
-                    )) AS nombre_persona,
+                    ))) AS nombre_persona,
                     p.numero_identificacion,
                     CASE 
                         WHEN e.id IS NOT NULL THEN 'Cliente'
@@ -1153,7 +1153,7 @@ class CuentasPorCobrar
                     c.id, c.id_producto_servicio, c.id_persona, c.fecha, c.valor, 
                     c.detalle, c.id_usuario, c.anulado,
                     ps.nombre, ps.id_clasificacion_productos_servicios, cps.nombre,
-                    p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
+                    p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido, p.razon_social,
                     p.numero_identificacion, e.id, eg.id_plan, g.nombre,
                     col.id, ca.nombre
                 ORDER BY 

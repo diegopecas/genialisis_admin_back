@@ -15,8 +15,8 @@ class TareasColaboradores
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,''))) AS nombre_colaborador,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
+                    COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,'')))) AS nombre_colaborador,
+                    COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,'')))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 INNER JOIN colaboradores c ON tc.id_colaborador = c.id
@@ -50,7 +50,7 @@ class TareasColaboradores
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
+                    COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,'')))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
@@ -92,8 +92,8 @@ class TareasColaboradores
                     tc.id_estado, etc.nombre AS nombre_estado, etc.color AS color_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,''))) AS nombre_colaborador,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
+                    COALESCE(NULLIF(TRIM(pc.razon_social), ''), TRIM(CONCAT(IFNULL(pc.primer_nombre,''), ' ', IFNULL(pc.primer_apellido,'')))) AS nombre_colaborador,
+                    COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,'')))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 INNER JOIN colaboradores c ON tc.id_colaborador = c.id
@@ -132,7 +132,7 @@ class TareasColaboradores
                     tc.id_estado, etc.nombre AS nombre_estado,
                     tc.origen, tc.id_historial_origen, tc.observaciones,
                     tc.id_usuario_registro, tc.fecha_registro,
-                    TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,''))) AS nombre_cliente
+                    COALESCE(NULLIF(TRIM(pe.razon_social), ''), TRIM(CONCAT(IFNULL(pe.primer_nombre,''), ' ', IFNULL(pe.segundo_nombre,''), ' ', IFNULL(pe.primer_apellido,''), ' ', IFNULL(pe.segundo_apellido,'')))) AS nombre_cliente
                 FROM tareas_colaboradores tc
                 INNER JOIN estados_tareas_colaboradores etc ON tc.id_estado = etc.id
                 LEFT JOIN tipos_tareas_colaboradores ttt ON tc.id_tipo_tarea = ttt.id
