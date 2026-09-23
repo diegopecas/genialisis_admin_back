@@ -57,6 +57,7 @@ Flight::route('GET /tarifas-planes/plan/@id_plan', [TarifasPlanes::class, 'getBy
 Flight::route('GET /tarifas-planes/plan/@id_plan/anio/@anio', [TarifasPlanes::class, 'getByPlanAnio']);
 Flight::route('GET /tarifas-planes/anio/@anio', [TarifasPlanes::class, 'getByAnio']);
 Flight::route('POST /tarifas-planes', [TarifasPlanes::class, 'new']);
+Flight::route('POST /tarifas-planes/guardar-lote', [TarifasPlanes::class, 'guardarLote']);
 Flight::route('PUT /tarifas-planes', [TarifasPlanes::class, 'replace']);
 Flight::route('DELETE /tarifas-planes', [TarifasPlanes::class, 'delete']);
 
@@ -79,6 +80,13 @@ Flight::route('DELETE /contratos-cliente', [ContratosCliente::class, 'delete']);
 Flight::route('GET /contratos-cliente-valores/contrato/@id', [ContratosClienteValores::class, 'getByContrato']);
 Flight::route('POST /contratos-cliente-valores', [ContratosClienteValores::class, 'guardarValores']);
 Flight::route('POST /contratos-cliente-valores/generar-defecto', [ContratosClienteValores::class, 'generarValoresPorDefecto']);
+
+// CONTRATOS CLIENTE - LINEAS DE PRODUCTO
+Flight::route('GET /contratos-cliente-productos/contrato/@id', [ContratosClienteProductos::class, 'getByContrato']);
+Flight::route('GET /contratos-cliente-productos/@id', [ContratosClienteProductos::class, 'getById']);
+Flight::route('POST /contratos-cliente-productos', [ContratosClienteProductos::class, 'guardarLineas']);
+Flight::route('DELETE /contratos-cliente-productos', [ContratosClienteProductos::class, 'delete']);
+Flight::route('DELETE /contratos-cliente-productos/contrato/@id', [ContratosClienteProductos::class, 'eliminarByContrato']);
 
 // TIPOS DE PLANTILLAS
 Flight::route('GET /tipos-plantillas', [TiposPlantillas::class, 'getAll']);

@@ -9,7 +9,7 @@ class ContratosCliente
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT cm.id, cm.id_cliente, cm.anio, cm.id_plan, cm.valor_implementacion, 
-                   cm.valor_suscripcion, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
+                   cm.valor_suscripcion, cm.valor_otros, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
                    cm.descuento_implementacion, cm.recargo_implementacion,
                    cm.descuento_suscripcion, cm.recargo_suscripcion,
                    cm.razon_descuento, cm.razon_recargo,
@@ -42,7 +42,7 @@ class ContratosCliente
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT cm.id, cm.id_cliente, cm.anio, cm.id_plan, cm.valor_implementacion, 
-                   cm.valor_suscripcion, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
+                   cm.valor_suscripcion, cm.valor_otros, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
                    cm.descuento_implementacion, cm.recargo_implementacion,
                    cm.descuento_suscripcion, cm.recargo_suscripcion,
                    cm.razon_descuento, cm.razon_recargo,
@@ -75,7 +75,7 @@ class ContratosCliente
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT cm.id, cm.id_cliente, cm.anio, cm.id_plan, cm.valor_implementacion, 
-                   cm.valor_suscripcion, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
+                   cm.valor_suscripcion, cm.valor_otros, cm.numero_cuotas, cm.cuotas_implementacion, cm.valor_total,
                    cm.descuento_implementacion, cm.recargo_implementacion,
                    cm.descuento_suscripcion, cm.recargo_suscripcion,
                    cm.razon_descuento, cm.razon_recargo,
@@ -107,7 +107,7 @@ class ContratosCliente
         $db = Flight::db();
         $sentence = $db->prepare("
             SELECT cm.id, cm.id_cliente, cm.anio, cm.id_plan, cm.valor_implementacion, 
-                   cm.valor_suscripcion, cm.numero_cuotas, cm.valor_total,
+                   cm.valor_suscripcion, cm.valor_otros, cm.numero_cuotas, cm.valor_total,
                    cm.fecha_firma, cm.fecha_inicio, cm.fecha_fin, cm.lugar_firma, 
                    cm.autoriza_imagenes, cm.autoriza_pagare, cm.activo,
                    cm.firmado, cm.ruta_documento_firmado,
@@ -144,6 +144,9 @@ class ContratosCliente
             $descuento_implementacion = isset(Flight::request()->data['descuento_implementacion']) ? Flight::request()->data['descuento_implementacion'] : 0;
             $recargo_implementacion = isset(Flight::request()->data['recargo_implementacion']) ? Flight::request()->data['recargo_implementacion'] : 0;
             $valor_suscripcion = Flight::request()->data['valor_suscripcion'];
+            // Total derivado de las lineas de contratos_cliente_productos.
+            // Se recibe para no perderlo mientras el contrato aun no tiene lineas.
+            $valor_otros = isset(Flight::request()->data['valor_otros']) ? Flight::request()->data['valor_otros'] : 0;
             $descuento_suscripcion = isset(Flight::request()->data['descuento_suscripcion']) ? Flight::request()->data['descuento_suscripcion'] : 0;
             $recargo_suscripcion = isset(Flight::request()->data['recargo_suscripcion']) ? Flight::request()->data['recargo_suscripcion'] : 0;
             $razon_descuento = isset(Flight::request()->data['razon_descuento']) ? Flight::request()->data['razon_descuento'] : null;
@@ -165,12 +168,12 @@ class ContratosCliente
             $idNew = Uuid::generar();
             $sentence = $db->prepare("INSERT INTO contratos_cliente 
                 (id, id_tenant, id_cliente, anio, id_plan, valor_implementacion, descuento_implementacion, recargo_implementacion, 
-                 valor_suscripcion, descuento_suscripcion, recargo_suscripcion, razon_descuento, razon_recargo,
+                 valor_suscripcion, valor_otros, descuento_suscripcion, recargo_suscripcion, razon_descuento, razon_recargo,
                  numero_cuotas, cuotas_implementacion, valor_total, fecha_firma, fecha_inicio, fecha_fin, lugar_firma, 
                  autoriza_imagenes, autoriza_pagare, observaciones, id_usuario_genera) 
                 VALUES 
                 (:id, :id_tenant, :id_cliente, :anio, :id_plan, :valor_implementacion, :descuento_implementacion, :recargo_implementacion,
-                 :valor_suscripcion, :descuento_suscripcion, :recargo_suscripcion, :razon_descuento, :razon_recargo,
+                 :valor_suscripcion, :valor_otros, :descuento_suscripcion, :recargo_suscripcion, :razon_descuento, :razon_recargo,
                  :numero_cuotas, :cuotas_implementacion, :valor_total, :fecha_firma, :fecha_inicio, :fecha_fin, :lugar_firma, 
                  :autoriza_imagenes, :autoriza_pagare, :observaciones, :id_usuario_genera)");
             
@@ -183,6 +186,7 @@ class ContratosCliente
             $sentence->bindParam(':descuento_implementacion', $descuento_implementacion);
             $sentence->bindParam(':recargo_implementacion', $recargo_implementacion);
             $sentence->bindParam(':valor_suscripcion', $valor_suscripcion);
+            $sentence->bindParam(':valor_otros', $valor_otros);
             $sentence->bindParam(':descuento_suscripcion', $descuento_suscripcion);
             $sentence->bindParam(':recargo_suscripcion', $recargo_suscripcion);
             $sentence->bindParam(':razon_descuento', $razon_descuento);
@@ -242,6 +246,9 @@ class ContratosCliente
             $descuento_implementacion = isset(Flight::request()->data['descuento_implementacion']) ? Flight::request()->data['descuento_implementacion'] : 0;
             $recargo_implementacion = isset(Flight::request()->data['recargo_implementacion']) ? Flight::request()->data['recargo_implementacion'] : 0;
             $valor_suscripcion = Flight::request()->data['valor_suscripcion'];
+            // Total derivado de las lineas de contratos_cliente_productos.
+            // Se recibe para no perderlo mientras el contrato aun no tiene lineas.
+            $valor_otros = isset(Flight::request()->data['valor_otros']) ? Flight::request()->data['valor_otros'] : 0;
             $descuento_suscripcion = isset(Flight::request()->data['descuento_suscripcion']) ? Flight::request()->data['descuento_suscripcion'] : 0;
             $recargo_suscripcion = isset(Flight::request()->data['recargo_suscripcion']) ? Flight::request()->data['recargo_suscripcion'] : 0;
             $razon_descuento = isset(Flight::request()->data['razon_descuento']) ? Flight::request()->data['razon_descuento'] : null;
@@ -268,6 +275,7 @@ class ContratosCliente
                 descuento_implementacion = :descuento_implementacion,
                 recargo_implementacion = :recargo_implementacion,
                 valor_suscripcion = :valor_suscripcion,
+                valor_otros = :valor_otros,
                 descuento_suscripcion = :descuento_suscripcion,
                 recargo_suscripcion = :recargo_suscripcion,
                 razon_descuento = :razon_descuento,
@@ -294,6 +302,7 @@ class ContratosCliente
             $sentence->bindParam(':descuento_implementacion', $descuento_implementacion);
             $sentence->bindParam(':recargo_implementacion', $recargo_implementacion);
             $sentence->bindParam(':valor_suscripcion', $valor_suscripcion);
+            $sentence->bindParam(':valor_otros', $valor_otros);
             $sentence->bindParam(':descuento_suscripcion', $descuento_suscripcion);
             $sentence->bindParam(':recargo_suscripcion', $recargo_suscripcion);
             $sentence->bindParam(':razon_descuento', $razon_descuento);
@@ -401,6 +410,12 @@ class ContratosCliente
         $id = Flight::request()->data['id'];
         
         $sentence = $db->prepare("DELETE FROM contratos_cliente_representantes WHERE id_contrato = :id AND id_tenant = :id_tenant");
+        $sentence->bindParam(':id', $id);
+        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentence->execute();
+
+        // Lineas de producto del contrato
+        $sentence = $db->prepare("DELETE FROM contratos_cliente_productos WHERE id_contrato = :id AND id_tenant = :id_tenant");
         $sentence->bindParam(':id', $id);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
         $sentence->execute();
@@ -540,12 +555,32 @@ class ContratosCliente
             $campos[$fila['llave']] = $fila['valor'];
         }
 
+        // Productos del contrato (lineas) para el detalle de la clausula de valor.
+        $sentenceProductos = $db->prepare("
+            SELECT ps.nombre AS nombre_producto,
+                   COALESCE(cmp.codigo_tipo_cobro, " . TarifasPlanes::sqlCodigoTipoCobro('cl') . ") AS codigo_tipo_cobro,
+                   ps.id_periodicidad_cobro,
+                   pc.nombre AS nombre_periodicidad,
+                   cmp.valor_base, cmp.descuento, cmp.recargo, cmp.valor_final, cmp.orden
+            FROM contratos_cliente_productos cmp
+            INNER JOIN productos_servicios ps ON cmp.id_producto_servicio = ps.id
+            LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
+            LEFT JOIN periodicidad_cobro pc ON pc.id = ps.id_periodicidad_cobro
+            WHERE cmp.id_contrato = :id_contrato AND cmp.id_tenant = :id_tenant
+            ORDER BY cmp.orden
+        ");
+        $sentenceProductos->bindParam(':id_contrato', $idContrato);
+        $sentenceProductos->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+        $sentenceProductos->execute();
+        $productos = $sentenceProductos->fetchAll(PDO::FETCH_ASSOC);
+
         Flight::json(array(
             'contrato' => $contrato,
             'cliente' => $cliente,
             'representantes' => $representantes,
             'configuracion' => $configuracion,
-            'campos' => $campos
+            'campos' => $campos,
+            'productos' => $productos
         ));
     }
 

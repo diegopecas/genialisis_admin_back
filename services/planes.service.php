@@ -25,6 +25,9 @@ class Planes
 
     public static function new()
     {
+        $userData = JWTService::requerirAutenticacion();
+        PermisosService::validar($userData, 'admin.planes');
+
         $db = Flight::db();
         $nombre = Flight::request()->data['nombre'];
         $icono = Flight::request()->data['icono'];
@@ -46,6 +49,9 @@ class Planes
 
     public static function replace()
     {
+        $userData = JWTService::requerirAutenticacion();
+        PermisosService::validar($userData, 'admin.planes');
+
         $db = Flight::db();
         $id = Flight::request()->data['id'];
         $nombre = Flight::request()->data['nombre'];
@@ -66,6 +72,9 @@ class Planes
 
     public static function delete()
     {
+        $userData = JWTService::requerirAutenticacion();
+        PermisosService::validar($userData, 'admin.planes');
+
         $db = Flight::db();
         $id = Flight::request()->data['id'];
         $sentence = $db->prepare("delete from planes where id = :id and id_tenant = :id_tenant");

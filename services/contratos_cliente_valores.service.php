@@ -21,13 +21,20 @@ class ContratosClienteValores
                    ps.id_periodicidad_cobro,
                    pc.nombre AS periodicidad,
                    ps.id_clasificacion_productos_servicios,
+                   COALESCE(cmp.codigo_tipo_cobro, " . TarifasPlanes::sqlCodigoTipoCobro('cl') . ") AS codigo_tipo_cobro,
+                   cmp.orden AS orden_producto,
                    MONTH(cmv.fecha) AS mes,
                    YEAR(cmv.fecha) AS anio
             FROM contratos_cliente_valores cmv
             INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
             INNER JOIN periodicidad_cobro pc ON ps.id_periodicidad_cobro = pc.id
+            LEFT JOIN contratos_cliente_productos cmp
+                   ON cmp.id_contrato = cmv.id_contrato
+                  AND cmp.id_producto_servicio = cmv.id_producto_servicio
+                  AND cmp.id_tenant = cmv.id_tenant
+            LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
             WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
-            ORDER BY cmv.fecha, ps.id_periodicidad_cobro
+            ORDER BY cmv.fecha, cmp.orden, ps.id_periodicidad_cobro
         ");
         $sentence->bindParam(':id_contrato', $idContrato);
         $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
@@ -97,54 +104,28 @@ class ContratosClienteValores
             ");
             $sentenceInsert->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
-            $totalImplementacion = 0;
-            $totalSuscripcion = 0;
-            $numeroCuotas = 0;
-
             foreach ($valores as $valor) {
                 $sentenceInsert->bindParam(':id_contrato', $id_contrato);
                 $sentenceInsert->bindParam(':id_producto', $valor['id_producto_servicio']);
                 $sentenceInsert->bindParam(':fecha', $valor['fecha']);
                 $sentenceInsert->bindParam(':valor', $valor['valor']);
                 $sentenceInsert->execute();
-
-                // Calcular totales según periodicidad (1=Anual/Implementación, 2=Mensual/Suscripción)
-                if ($valor['id_periodicidad_cobro'] == 1) {
-                    $totalImplementacion += $valor['valor'];
-                } else if ($valor['id_periodicidad_cobro'] == 2) {
-                    $totalSuscripcion += $valor['valor'];
-                    $numeroCuotas++;
-                }
             }
 
-            // Actualizar solo los totales en contratos_cliente (NO las fechas, esas las maneja el usuario)
-            $valorTotal = $totalImplementacion + $totalSuscripcion;
-            
-            $sentenceUpdate = $db->prepare("
-                UPDATE contratos_cliente SET 
-                    valor_implementacion = :valor_implementacion,
-                    valor_suscripcion = :valor_suscripcion,
-                    numero_cuotas = :numero_cuotas,
-                    valor_total = :valor_total
-                WHERE id = :id AND id_tenant = :id_tenant
-            ");
-            $sentenceUpdate->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $sentenceUpdate->bindParam(':valor_implementacion', $totalImplementacion);
-            $sentenceUpdate->bindParam(':valor_suscripcion', $totalSuscripcion);
-            $sentenceUpdate->bindParam(':numero_cuotas', $numeroCuotas);
-            $sentenceUpdate->bindParam(':valor_total', $valorTotal);
-            $sentenceUpdate->bindParam(':id', $id_contrato);
-            $sentenceUpdate->execute();
+            // Los totales de la cabecera se derivan de las lineas del contrato
+            // (contratos_cliente_productos). No se tocan las fechas.
+            $totales = self::recalcularTotalesContrato($db, $id_contrato);
 
             $db->commit();
 
             Flight::json(array(
                 'success' => true,
                 'id_contrato' => $id_contrato,
-                'total_implementacion' => $totalImplementacion,
-                'total_suscripcion' => $totalSuscripcion,
-                'numero_cuotas' => $numeroCuotas,
-                'valor_total' => $valorTotal
+                'total_implementacion' => $totales['total_implementacion'],
+                'total_suscripcion' => $totales['total_suscripcion'],
+                'total_otros' => $totales['total_otros'],
+                'numero_cuotas' => $totales['numero_cuotas'],
+                'valor_total' => $totales['valor_total']
             ));
         } catch (Exception $e) {
             $db->rollBack();
@@ -219,46 +200,19 @@ class ContratosClienteValores
      */
     private static function recalcularTotalesContrato($db, $idContrato)
     {
-        $sentence = $db->prepare("
-            SELECT 
-                SUM(CASE WHEN ps.id_periodicidad_cobro = 1 THEN cmv.valor ELSE 0 END) AS total_implementacion,
-                SUM(CASE WHEN ps.id_periodicidad_cobro = 2 THEN cmv.valor ELSE 0 END) AS total_suscripcion,
-                COUNT(CASE WHEN ps.id_periodicidad_cobro = 2 THEN 1 END) AS numero_cuotas
-            FROM contratos_cliente_valores cmv
-            INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
-            WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
-        ");
-        $sentence->bindParam(':id_contrato', $idContrato);
-        $sentence->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-        $sentence->execute();
-        $totales = $sentence->fetch(PDO::FETCH_ASSOC);
-
-        if ($totales) {
-            $valorTotal = ($totales['total_implementacion'] ?? 0) + ($totales['total_suscripcion'] ?? 0);
-            
-            // Solo actualizar totales, NO las fechas (esas las maneja el usuario)
-            $sentenceUpdate = $db->prepare("
-                UPDATE contratos_cliente SET 
-                    valor_implementacion = :valor_implementacion,
-                    valor_suscripcion = :valor_suscripcion,
-                    numero_cuotas = :numero_cuotas,
-                    valor_total = :valor_total
-                WHERE id = :id AND id_tenant = :id_tenant
-            ");
-            $sentenceUpdate->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
-            $sentenceUpdate->bindParam(':valor_implementacion', $totales['total_implementacion']);
-            $sentenceUpdate->bindParam(':valor_suscripcion', $totales['total_suscripcion']);
-            $sentenceUpdate->bindParam(':numero_cuotas', $totales['numero_cuotas']);
-            $sentenceUpdate->bindParam(':valor_total', $valorTotal);
-            $sentenceUpdate->bindParam(':id', $idContrato);
-            $sentenceUpdate->execute();
-        }
+        // La clasificacion por tipo de tarifa vive en el servicio de las lineas,
+        // que es la tabla principal de donde salen los totales derivados.
+        return ContratosClienteProductos::recalcularTotalesContrato($db, $idContrato);
     }
 
     /**
-     * Generar valores por defecto para un contrato nuevo
-     * Basado en las tarifas del plan y las fechas seleccionadas
-     * Acepta valores personalizados de implementación y suscripción (con descuentos/recargos aplicados)
+     * Generar valores por defecto para un contrato nuevo.
+     * Recorre las lineas del contrato (o, si no vienen, las filas obligatorias
+     * de la tarifa del plan) y arma el calendario:
+     *   - IMPLEMENTACION: se reparte en las primeras cuotas_implementacion cuotas
+     *   - SUSCRIPCION: una cuota por mes
+     *   - OTRO: segun la periodicidad del producto (2 Mensual = una por mes,
+     *     el resto = una sola cuota en el primer mes)
      */
     public static function generarValoresPorDefecto()
     {
@@ -271,94 +225,205 @@ class ContratosClienteValores
             $fecha_inicio = Flight::request()->data['fecha_inicio'];
             $fecha_fin = Flight::request()->data['fecha_fin'];
             $cuotas_implementacion = isset(Flight::request()->data['cuotas_implementacion']) ? (int)Flight::request()->data['cuotas_implementacion'] : 1;
-            
-            // Valores personalizados (con descuentos/recargos ya aplicados)
-            $valor_implementacion_custom = isset(Flight::request()->data['valor_implementacion']) ? (float)Flight::request()->data['valor_implementacion'] : null;
-            $valor_suscripcion_custom = isset(Flight::request()->data['valor_suscripcion']) ? (float)Flight::request()->data['valor_suscripcion'] : null;
+            if ($cuotas_implementacion < 1) {
+                $cuotas_implementacion = 1;
+            }
+            // Dia del mes en que vence cada cuota. Es la fecha que despues se
+            // copia a la cuenta por cobrar y contra la que corre la mora.
+            // Sin dato explicito se conserva el comportamiento historico: dia 1.
+            $dia_vencimiento = isset(Flight::request()->data['dia_vencimiento']) ? (int)Flight::request()->data['dia_vencimiento'] : 1;
+            if ($dia_vencimiento < 1 || $dia_vencimiento > 31) {
+                $dia_vencimiento = 1;
+            }
+
+            // Lineas escogidas en el contrato, con su descuento y recargo ya
+            // aplicados en valor_final.
+            $lineas = Flight::request()->data['lineas'];
+            $lineas = is_array($lineas) ? $lineas : [];
 
             $db = Flight::db();
 
-            // Obtener tarifas del plan
+            // Filas de la tarifa del plan para el anio
             $sentenceTarifa = $db->prepare("
-                SELECT tg.id_producto_implementacion, tg.id_producto_suscripcion,
-                       tg.valor_implementacion, pm.nombre AS nombre_implementacion,
-                       tg.valor_suscripcion, pp.nombre AS nombre_suscripcion
+                SELECT tg.id, tg.id_producto_servicio, tg.valor,
+                       tg.obligatorio, tg.orden,
+                       ps.nombre AS nombre_producto,
+                       ps.id_periodicidad_cobro,
+                       " . TarifasPlanes::sqlCodigoTipoCobro('cl') . " AS codigo_tipo_cobro,
+                       " . TarifasPlanes::sqlNombreTipoCobro('cl') . " AS nombre_tipo_cobro
                 FROM tarifas_planes tg
-                INNER JOIN productos_servicios pm ON tg.id_producto_implementacion = pm.id
-                INNER JOIN productos_servicios pp ON tg.id_producto_suscripcion = pp.id
+                INNER JOIN productos_servicios ps ON tg.id_producto_servicio = ps.id
+                LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
                 WHERE tg.id_plan = :id_plan AND tg.anio = :anio AND tg.id_tenant = :id_tenant
+                ORDER BY tg.orden
             ");
             $sentenceTarifa->bindParam(':id_plan', $id_plan);
             $sentenceTarifa->bindParam(':anio', $anio);
             $sentenceTarifa->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
             $sentenceTarifa->execute();
-            $tarifa = $sentenceTarifa->fetch(PDO::FETCH_ASSOC);
+            $tarifa = $sentenceTarifa->fetchAll(PDO::FETCH_ASSOC);
 
-            if (!$tarifa) {
+            if (empty($tarifa)) {
                 Flight::json(array('error' => 'No se encontraron tarifas para el plan y año especificados'), 404);
                 return;
             }
 
-            // Usar valores personalizados si vienen, sino usar los de la tarifa
-            $valorImplementacionFinal = ($valor_implementacion_custom !== null) ? $valor_implementacion_custom : (float)$tarifa['valor_implementacion'];
-            $valorSuscripcionFinal = ($valor_suscripcion_custom !== null) ? $valor_suscripcion_custom : (float)$tarifa['valor_suscripcion'];
+            // Indice de la tarifa por producto, para completar los datos que la
+            // linea del contrato no traiga.
+            $tarifaPorProducto = [];
+            foreach ($tarifa as $filaTarifa) {
+                $tarifaPorProducto[$filaTarifa['id_producto_servicio']] = $filaTarifa;
+            }
 
-            $valores = [];
-            
-            // Generar fechas de suscripción (un registro por mes)
-            $fechaActual = new DateTime($fecha_inicio);
-            $fechaLimite = new DateTime($fecha_fin);
-            $mesIndex = 0;
-            
-            // Calcular cuotas de implementación sin decimales
-            $cuotaBaseImplementacion = floor($valorImplementacionFinal / $cuotas_implementacion);
-            $residuoImplementacion = $valorImplementacionFinal - ($cuotaBaseImplementacion * $cuotas_implementacion);
-
-            while ($fechaActual <= $fechaLimite) {
-                $fechaPrimeroDeMes = $fechaActual->format('Y-m-01');
-                
-                // Valor de implementación (dividido en las primeras N cuotas)
-                if ($mesIndex < $cuotas_implementacion) {
-                    // La primera cuota absorbe el residuo para que sume exacto
-                    $valorCuotaImplementacion = ($mesIndex == 0) 
-                        ? $cuotaBaseImplementacion + $residuoImplementacion 
-                        : $cuotaBaseImplementacion;
-                    
-                    $valores[] = [
-                        'id_producto_servicio' => $tarifa['id_producto_implementacion'],
-                        'nombre_producto' => $tarifa['nombre_implementacion'],
-                        'fecha' => $fechaPrimeroDeMes,
-                        'valor' => (int)$valorCuotaImplementacion,
-                        'id_periodicidad_cobro' => 1, // Anual (implementación)
-                        'es_implementacion' => true
+            // Sin lineas explicitas se usan las filas obligatorias de la tarifa
+            if (empty($lineas)) {
+                foreach ($tarifa as $filaTarifa) {
+                    if ((int)$filaTarifa['obligatorio'] !== 1) {
+                        continue;
+                    }
+                    $lineas[] = [
+                        'id_producto_servicio' => $filaTarifa['id_producto_servicio'],
+                        'valor_final' => $filaTarifa['valor'],
+                        'orden' => $filaTarifa['orden']
                     ];
                 }
-
-                // Valor de suscripción (también entero)
-                $valores[] = [
-                    'id_producto_servicio' => $tarifa['id_producto_suscripcion'],
-                    'nombre_producto' => $tarifa['nombre_suscripcion'],
-                    'fecha' => $fechaPrimeroDeMes,
-                    'valor' => (int)$valorSuscripcionFinal,
-                    'id_periodicidad_cobro' => 2, // Mensual (suscripción)
-                    'es_implementacion' => false
-                ];
-
-                $fechaActual->modify('+1 month');
-                $mesIndex++;
             }
 
-            // Calcular totales usando los valores finales
-            $totalImplementacion = $valorImplementacionFinal;
-            $totalSuscripcion = 0;
-            $numeroCuotas = 0;
-            
-            foreach ($valores as $v) {
-                if ($v['id_periodicidad_cobro'] == 2) {
-                    $totalSuscripcion += $v['valor'];
-                    $numeroCuotas++;
+            if (empty($lineas)) {
+                Flight::json(array('error' => 'La tarifa del plan no tiene productos obligatorios configurados'), 400);
+                return;
+            }
+
+            // Una linea puede traer un producto que no esta en la tarifa del plan
+            // (por ejemplo, uno que se quito de la tarifa despues de firmar). Sus
+            // datos de cobro se toman directamente del producto.
+            $sentenceProducto = $db->prepare("
+                SELECT ps.id AS id_producto_servicio, ps.nombre AS nombre_producto,
+                       ps.id_periodicidad_cobro, 1 AS orden,
+                       " . TarifasPlanes::sqlCodigoTipoCobro('cl') . " AS codigo_tipo_cobro,
+                       " . TarifasPlanes::sqlNombreTipoCobro('cl') . " AS nombre_tipo_cobro
+                FROM productos_servicios ps
+                LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
+                WHERE ps.id = :id_producto AND ps.id_tenant = :id_tenant
+            ");
+            foreach ($lineas as $linea) {
+                $idProductoLinea = isset($linea['id_producto_servicio']) ? $linea['id_producto_servicio'] : null;
+                if (!$idProductoLinea || isset($tarifaPorProducto[$idProductoLinea])) {
+                    continue;
+                }
+                $sentenceProducto->bindValue(':id_producto', $idProductoLinea);
+                $sentenceProducto->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
+                $sentenceProducto->execute();
+                $filaProducto = $sentenceProducto->fetch(PDO::FETCH_ASSOC);
+                if ($filaProducto) {
+                    $tarifaPorProducto[$idProductoLinea] = $filaProducto;
                 }
             }
+
+            // Fechas de vencimiento, una por mes del periodo
+            $fechasCuotas = [];
+            $fechaActual = new DateTime($fecha_inicio);
+            $fechaLimite = new DateTime($fecha_fin);
+            while ($fechaActual <= $fechaLimite) {
+                // El dia pedido se recorta al ultimo dia del mes cuando no
+                // existe (un 31 en febrero cae al 28/29).
+                $ultimoDiaDelMes = (int) $fechaActual->format('t');
+                $diaEfectivo = min($dia_vencimiento, $ultimoDiaDelMes);
+                $fechasCuotas[] = $fechaActual->format('Y-m-') . str_pad($diaEfectivo, 2, '0', STR_PAD_LEFT);
+                $fechaActual->modify('+1 month');
+            }
+
+            if (empty($fechasCuotas)) {
+                Flight::json(array('error' => 'El periodo entre la fecha de inicio y la de fin no tiene meses'), 400);
+                return;
+            }
+
+            $valores = [];
+            $totalImplementacion = 0;
+            $totalSuscripcion = 0;
+            $totalOtros = 0;
+            $numeroCuotas = 0;
+
+            foreach ($lineas as $linea) {
+                $idProducto = $linea['id_producto_servicio'];
+                $filaTarifa = isset($tarifaPorProducto[$idProducto]) ? $tarifaPorProducto[$idProducto] : null;
+
+                // El tipo de cobro lo manda la clasificacion del producto, no la linea
+                $codigoTipo = $filaTarifa ? $filaTarifa['codigo_tipo_cobro'] : 'OTRO';
+                $nombreProducto = $filaTarifa ? $filaTarifa['nombre_producto'] : null;
+                $periodicidad = $filaTarifa ? (int)$filaTarifa['id_periodicidad_cobro'] : null;
+                $orden = isset($linea['orden']) ? (int)$linea['orden'] : ($filaTarifa ? (int)$filaTarifa['orden'] : 1);
+                $valorLinea = isset($linea['valor_final']) ? (float)$linea['valor_final'] : 0;
+
+                if ($valorLinea <= 0) {
+                    continue;
+                }
+
+                if ($codigoTipo === 'IMPLEMENTACION') {
+                    // Se reparte en las primeras cuotas, sin decimales.
+                    // La primera cuota absorbe el residuo para que sume exacto.
+                    $cuotas = min($cuotas_implementacion, count($fechasCuotas));
+                    $cuotaBase = floor($valorLinea / $cuotas);
+                    $residuo = $valorLinea - ($cuotaBase * $cuotas);
+
+                    for ($i = 0; $i < $cuotas; $i++) {
+                        $valorCuota = ($i == 0) ? $cuotaBase + $residuo : $cuotaBase;
+                        $valores[] = [
+                            'id_producto_servicio' => $idProducto,
+                            'nombre_producto' => $nombreProducto,
+                            'fecha' => $fechasCuotas[$i],
+                            'valor' => (int)$valorCuota,
+                            'id_periodicidad_cobro' => $periodicidad,
+                            'codigo_tipo_cobro' => $codigoTipo,
+                            'orden' => $orden,
+                            'es_implementacion' => true
+                        ];
+                        $totalImplementacion += (int)$valorCuota;
+                    }
+                } else if ($codigoTipo === 'SUSCRIPCION') {
+                    foreach ($fechasCuotas as $fechaCuota) {
+                        $valores[] = [
+                            'id_producto_servicio' => $idProducto,
+                            'nombre_producto' => $nombreProducto,
+                            'fecha' => $fechaCuota,
+                            'valor' => (int)$valorLinea,
+                            'id_periodicidad_cobro' => $periodicidad,
+                            'codigo_tipo_cobro' => $codigoTipo,
+                            'orden' => $orden,
+                            'es_implementacion' => false
+                        ];
+                        $totalSuscripcion += (int)$valorLinea;
+                        $numeroCuotas++;
+                    }
+                } else {
+                    // OTRO: la periodicidad del producto manda.
+                    // 2 (Mensual) va mes a mes; el resto queda en una sola cuota.
+                    $fechasDelProducto = ($periodicidad === 2) ? $fechasCuotas : [$fechasCuotas[0]];
+
+                    foreach ($fechasDelProducto as $fechaCuota) {
+                        $valores[] = [
+                            'id_producto_servicio' => $idProducto,
+                            'nombre_producto' => $nombreProducto,
+                            'fecha' => $fechaCuota,
+                            'valor' => (int)$valorLinea,
+                            'id_periodicidad_cobro' => $periodicidad,
+                            'codigo_tipo_cobro' => $codigoTipo,
+                            'orden' => $orden,
+                            'es_implementacion' => false
+                        ];
+                        $totalOtros += (int)$valorLinea;
+                    }
+                }
+            }
+
+            // Se ordena por fecha y luego por el orden de la linea, para que la
+            // grilla del contrato salga mes a mes en el mismo orden de la tarifa.
+            usort($valores, function ($a, $b) {
+                if ($a['fecha'] === $b['fecha']) {
+                    return $a['orden'] <=> $b['orden'];
+                }
+                return strcmp($a['fecha'], $b['fecha']);
+            });
 
             Flight::json(array(
                 'valores' => $valores,
@@ -366,8 +431,9 @@ class ContratosClienteValores
                 'resumen' => [
                     'total_implementacion' => $totalImplementacion,
                     'total_suscripcion' => $totalSuscripcion,
+                    'total_otros' => $totalOtros,
                     'numero_cuotas' => $numeroCuotas,
-                    'valor_total' => $totalImplementacion + $totalSuscripcion
+                    'valor_total' => $totalImplementacion + $totalSuscripcion + $totalOtros
                 ]
             ));
         } catch (Exception $e) {

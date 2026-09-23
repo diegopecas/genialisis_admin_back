@@ -1393,6 +1393,7 @@ class Clientes
                 . "Reglas:\n"
                 . "- El NIT y el DV van por separado: el NIT es la casilla 5 y el DV la casilla 6. No pegues el DV al NIT.\n"
                 . "- representante_legal es el de la hoja de Representación marcado como representante legal PRINCIPAL (REPRS LEGAL PRIN). Ignora el suplente.\n"
+                . "- En la hoja de Representación, el tipo de documento (casilla 100) trae al lado un código de dos dígitos (por ejemplo 13 para cédula de ciudadanía). Ese código NO hace parte del número: numero_identificacion es solo la casilla 101 'Número de identificación'.\n"
                 . "- Si es persona natural o el documento no trae hoja de Representación, devuelve representante_legal con todos sus campos en null.\n"
                 . "- Si un campo no aparece o no es legible, usa null.\n"
                 . "- numero_identificacion, nit y telefono: devuelve solo los dígitos, sin puntos ni espacios.";
