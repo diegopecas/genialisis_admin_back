@@ -1,6 +1,9 @@
 <?php
 // PERSONAS
 Flight::route('GET /personas', [Personas::class, 'getAll']);
+// Va antes de /personas/@id: Flight resuelve por orden de declaracion y si
+// queda despues, la palabra "buscador" entra como si fuera un id.
+Flight::route('GET /personas/buscador', [Personas::class, 'getBuscador']);
 Flight::route('GET /personas/@id', [Personas::class, 'getById']);
 Flight::route('POST /personas', [Personas::class, 'new']);
 Flight::route('PUT /personas', [Personas::class, 'replace']);
