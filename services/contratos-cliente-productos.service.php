@@ -9,13 +9,31 @@
 class ContratosClienteProductos
 {
     /**
+     * Condición para amarrar una cuota (contratos_cliente_valores) con su línea
+     * del contrato. Un producto puede estar en varias líneas, así que la cuota
+     * se amarra por el orden de la línea; las cuotas viejas que no tienen
+     * orden_linea se amarran a la PRIMERA línea de su producto, para que una
+     * cuota nunca se cruce con dos líneas y se cuente doble.
+     */
+    public static function sqlJoinLinea($aliasValor, $aliasLinea)
+    {
+        return "$aliasLinea.id_contrato = $aliasValor.id_contrato
+                AND $aliasLinea.id_tenant = $aliasValor.id_tenant
+                AND $aliasLinea.orden = COALESCE($aliasValor.orden_linea, (
+                        SELECT MIN(xl.orden) FROM contratos_cliente_productos xl
+                        WHERE xl.id_contrato = $aliasValor.id_contrato
+                          AND xl.id_tenant = $aliasValor.id_tenant
+                          AND xl.id_producto_servicio = $aliasValor.id_producto_servicio))";
+    }
+
+    /**
      * SELECT común de las líneas con los datos del producto y del tipo.
      */
     private static function selectBase()
     {
         return "
-            SELECT cmp.id, cmp.id_contrato, cmp.id_producto_servicio,
-                   cmp.valor_base, cmp.descuento, cmp.recargo,
+            SELECT cmp.id, cmp.id_contrato, cmp.id_producto_servicio, cmp.descripcion,
+                   cmp.valor_base, cmp.cantidad, cmp.descuento, cmp.recargo,
                    cmp.valor_final, cmp.orden,
                    ps.nombre AS nombre_producto,
                    ps.id_periodicidad_cobro,
@@ -68,8 +86,12 @@ class ContratosClienteProductos
     /**
      * Guarda de un golpe las líneas de un contrato (reemplaza las existentes)
      * y recalcula los totales derivados de la cabecera.
-     * Espera: id_contrato y lineas[] con id_producto_servicio,
-     * valor_base, descuento, recargo, valor_final y orden. El código del tipo
+     * Espera: id_contrato y lineas[] con id_producto_servicio, descripcion,
+     * valor_base, cantidad, descuento, recargo, valor_final y orden. Un mismo
+     * producto puede venir en varias líneas; lo que no se puede repetir es el
+     * orden, porque con él se amarran las cuotas del calendario. El valor
+     * final ya viene calculado como valor_base x cantidad - descuento + recargo.
+     * El código del tipo
      * de cobro se toma de la clasificación del producto y queda como foto del
      * momento de la firma (codigo_tipo_cobro).
      */
@@ -89,17 +111,24 @@ class ContratosClienteProductos
                 return;
             }
 
-            $productosEnviados = [];
+            $ordenesEnviados = [];
+            $posicion = 1;
             foreach ($lineas as $linea) {
                 if (empty($linea['id_producto_servicio'])) {
                     Flight::json(array('error' => 'Hay una linea sin producto'), 400);
                     return;
                 }
-                if (in_array($linea['id_producto_servicio'], $productosEnviados)) {
-                    Flight::json(array('error' => 'El producto ' . $linea['id_producto_servicio'] . ' esta repetido en el contrato'), 400);
+                if (isset($linea['cantidad']) && (int)$linea['cantidad'] < 1) {
+                    Flight::json(array('error' => 'La cantidad de cada producto debe ser mayor o igual a 1'), 400);
                     return;
                 }
-                $productosEnviados[] = $linea['id_producto_servicio'];
+                $ordenLinea = isset($linea['orden']) ? (int)$linea['orden'] : $posicion;
+                if (in_array($ordenLinea, $ordenesEnviados)) {
+                    Flight::json(array('error' => 'Hay dos lineas del contrato con el mismo orden (' . $ordenLinea . ')'), 400);
+                    return;
+                }
+                $ordenesEnviados[] = $ordenLinea;
+                $posicion++;
             }
 
             $db->beginTransaction();
@@ -117,10 +146,10 @@ class ContratosClienteProductos
                                              WHERE ps.id = :id_producto AND ps.id_tenant = :id_tenant");
 
             $insertar = $db->prepare("INSERT INTO contratos_cliente_productos
-                (id, id_tenant, id_contrato, id_producto_servicio, codigo_tipo_cobro,
-                 valor_base, descuento, recargo, valor_final, orden)
-                VALUES (:id, :id_tenant, :id_contrato, :id_producto_servicio, :codigo_tipo_cobro,
-                 :valor_base, :descuento, :recargo, :valor_final, :orden)");
+                (id, id_tenant, id_contrato, id_producto_servicio, descripcion, codigo_tipo_cobro,
+                 valor_base, cantidad, descuento, recargo, valor_final, orden)
+                VALUES (:id, :id_tenant, :id_contrato, :id_producto_servicio, :descripcion, :codigo_tipo_cobro,
+                 :valor_base, :cantidad, :descuento, :recargo, :valor_final, :orden)");
 
             $ids = [];
             $orden = 1;
@@ -134,6 +163,10 @@ class ContratosClienteProductos
                 $codigo_tipo_cobro = $filaTipo ? $filaTipo['codigo_tipo_cobro'] : 'OTRO';
 
                 $valor_base = isset($linea['valor_base']) ? $linea['valor_base'] : 0;
+                // Las lineas guardadas antes de existir la cantidad no la traen
+                $cantidad = isset($linea['cantidad']) ? max(1, (int)$linea['cantidad']) : 1;
+                $descripcion = isset($linea['descripcion']) ? trim((string)$linea['descripcion']) : '';
+                $descripcion = $descripcion !== '' ? mb_substr($descripcion, 0, 200) : null;
                 $descuento = isset($linea['descuento']) ? $linea['descuento'] : 0;
                 $recargo = isset($linea['recargo']) ? $linea['recargo'] : 0;
                 $valor_final = isset($linea['valor_final']) ? $linea['valor_final'] : 0;
@@ -144,8 +177,10 @@ class ContratosClienteProductos
                 $insertar->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
                 $insertar->bindParam(':id_contrato', $id_contrato);
                 $insertar->bindParam(':id_producto_servicio', $id_producto_servicio);
+                $insertar->bindValue(':descripcion', $descripcion);
                 $insertar->bindValue(':codigo_tipo_cobro', $codigo_tipo_cobro);
                 $insertar->bindParam(':valor_base', $valor_base);
+                $insertar->bindValue(':cantidad', $cantidad, PDO::PARAM_INT);
                 $insertar->bindParam(':descuento', $descuento);
                 $insertar->bindParam(':recargo', $recargo);
                 $insertar->bindParam(':valor_final', $valor_final);
@@ -200,7 +235,9 @@ class ContratosClienteProductos
     /**
      * Recalcula los totales derivados de la cabecera del contrato a partir del
      * calendario de contratos_cliente_valores, clasificando cada cuota por el
-     * tipo de cobro de la línea a la que pertenece su producto.
+     * tipo de cobro de la línea a la que pertenece la cuota. El número de
+     * cuotas cuenta los meses con suscripción, no las cuotas: dos líneas de
+     * suscripción en el mismo mes son una sola cuota del contrato.
      * Si la línea no tiene tipo se usa el del producto, y si el producto
      * tampoco lo tiene se cae a la periodicidad (1 Anual = implementación,
      * 2 Mensual = suscripción), que es como se hacía antes.
@@ -217,14 +254,12 @@ class ContratosClienteProductos
                 SUM(CASE WHEN $codigoTipo = 'IMPLEMENTACION' THEN cmv.valor ELSE 0 END) AS total_implementacion,
                 SUM(CASE WHEN $codigoTipo = 'SUSCRIPCION' THEN cmv.valor ELSE 0 END) AS total_suscripcion,
                 SUM(CASE WHEN $codigoTipo = 'OTRO' THEN cmv.valor ELSE 0 END) AS total_otros,
-                COUNT(CASE WHEN $codigoTipo = 'SUSCRIPCION' THEN 1 END) AS numero_cuotas
+                COUNT(DISTINCT CASE WHEN $codigoTipo = 'SUSCRIPCION' THEN cmv.fecha END) AS numero_cuotas
             FROM contratos_cliente_valores cmv
             INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
             LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
             LEFT JOIN contratos_cliente_productos cmp
-                   ON cmp.id_contrato = cmv.id_contrato
-                  AND cmp.id_producto_servicio = cmv.id_producto_servicio
-                  AND cmp.id_tenant = cmv.id_tenant
+                   ON " . self::sqlJoinLinea('cmv', 'cmp') . "
             WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
         ");
         $sentence->bindParam(':id_contrato', $idContrato);

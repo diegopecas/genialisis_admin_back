@@ -891,9 +891,15 @@ class CuentasPorCobrar
             $stmtValores = $db->prepare("
                 SELECT cmv.id, cmv.id_producto_servicio, cmv.fecha, cmv.valor,
                        ps.nombre AS nombre_producto,
-                       ps.id_periodicidad_cobro
+                       ps.id_periodicidad_cobro,
+                       cmp.descripcion
                 FROM contratos_cliente_valores cmv
                 INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
+                LEFT JOIN contratos_cliente_productos cmp
+                       ON cmp.id_contrato = cmv.id_contrato
+                      AND cmp.id_tenant = cmv.id_tenant
+                      AND ( cmp.orden = cmv.orden_linea
+                            OR (cmv.orden_linea IS NULL AND cmp.id_producto_servicio = cmv.id_producto_servicio) )
                 WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
                 ORDER BY cmv.fecha, ps.id_periodicidad_cobro
             ");
@@ -970,6 +976,11 @@ class CuentasPorCobrar
 
                 $tipoConcepto = ($valor['id_periodicidad_cobro'] == 1) ? 'Implementación' : 'Suscripción';
                 $detalle = "Generado automáticamente - Contrato #{$id_contrato} - {$tipoConcepto} {$nombreMes} {$anioFecha}";
+                // Cuando el producto va en varias lineas, la descripcion de la
+                // linea distingue una cuenta de la otra (ej. un portal por sitio)
+                if (!empty($valor['descripcion'])) {
+                    $detalle .= " - " . $valor['descripcion'];
+                }
 
                 $idCxc = Uuid::generar();
                 $stmtInsert->bindValue(':id', $idCxc);

@@ -17,6 +17,8 @@ class ContratosClienteValores
         $sentence = $db->prepare("
             SELECT cmv.id, cmv.id_contrato, cmv.id_producto_servicio,
                    cmv.fecha, cmv.valor,
+                   COALESCE(cmv.orden_linea, cmp.orden) AS orden,
+                   cmp.descripcion,
                    ps.nombre AS nombre_producto,
                    ps.id_periodicidad_cobro,
                    pc.nombre AS periodicidad,
@@ -29,9 +31,7 @@ class ContratosClienteValores
             INNER JOIN productos_servicios ps ON cmv.id_producto_servicio = ps.id
             INNER JOIN periodicidad_cobro pc ON ps.id_periodicidad_cobro = pc.id
             LEFT JOIN contratos_cliente_productos cmp
-                   ON cmp.id_contrato = cmv.id_contrato
-                  AND cmp.id_producto_servicio = cmv.id_producto_servicio
-                  AND cmp.id_tenant = cmv.id_tenant
+                   ON " . ContratosClienteProductos::sqlJoinLinea('cmv', 'cmp') . "
             LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
             WHERE cmv.id_contrato = :id_contrato AND cmv.id_tenant = :id_tenant
             ORDER BY cmv.fecha, cmp.orden, ps.id_periodicidad_cobro
@@ -99,14 +99,18 @@ class ContratosClienteValores
             // Insertar nuevos valores
             $sentenceInsert = $db->prepare("
                 INSERT INTO contratos_cliente_valores 
-                (id_tenant, id_contrato, id_producto_servicio, fecha, valor) 
-                VALUES (:id_tenant, :id_contrato, :id_producto, :fecha, :valor)
+                (id_tenant, id_contrato, id_producto_servicio, orden_linea, fecha, valor) 
+                VALUES (:id_tenant, :id_contrato, :id_producto, :orden_linea, :fecha, :valor)
             ");
             $sentenceInsert->bindValue(':id_tenant', TenantContext::id(), PDO::PARAM_INT);
 
             foreach ($valores as $valor) {
                 $sentenceInsert->bindParam(':id_contrato', $id_contrato);
                 $sentenceInsert->bindParam(':id_producto', $valor['id_producto_servicio']);
+                // El orden de la linea amarra la cuota con su linea del contrato,
+                // porque un mismo producto puede estar en varias lineas
+                $ordenLinea = isset($valor['orden']) && $valor['orden'] !== '' ? (int)$valor['orden'] : null;
+                $sentenceInsert->bindValue(':orden_linea', $ordenLinea, $ordenLinea === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
                 $sentenceInsert->bindParam(':fecha', $valor['fecha']);
                 $sentenceInsert->bindParam(':valor', $valor['valor']);
                 $sentenceInsert->execute();
@@ -342,7 +346,9 @@ class ContratosClienteValores
             $totalImplementacion = 0;
             $totalSuscripcion = 0;
             $totalOtros = 0;
-            $numeroCuotas = 0;
+            // El numero de cuotas son los meses con suscripcion: dos lineas de
+            // suscripcion en el mismo mes siguen siendo una sola cuota
+            $mesesConSuscripcion = [];
 
             foreach ($lineas as $linea) {
                 $idProducto = $linea['id_producto_servicio'];
@@ -354,6 +360,7 @@ class ContratosClienteValores
                 $periodicidad = $filaTarifa ? (int)$filaTarifa['id_periodicidad_cobro'] : null;
                 $orden = isset($linea['orden']) ? (int)$linea['orden'] : ($filaTarifa ? (int)$filaTarifa['orden'] : 1);
                 $valorLinea = isset($linea['valor_final']) ? (float)$linea['valor_final'] : 0;
+                $descripcionLinea = isset($linea['descripcion']) ? $linea['descripcion'] : null;
 
                 if ($valorLinea <= 0) {
                     continue;
@@ -376,6 +383,7 @@ class ContratosClienteValores
                             'id_periodicidad_cobro' => $periodicidad,
                             'codigo_tipo_cobro' => $codigoTipo,
                             'orden' => $orden,
+                            'descripcion' => $descripcionLinea,
                             'es_implementacion' => true
                         ];
                         $totalImplementacion += (int)$valorCuota;
@@ -390,10 +398,11 @@ class ContratosClienteValores
                             'id_periodicidad_cobro' => $periodicidad,
                             'codigo_tipo_cobro' => $codigoTipo,
                             'orden' => $orden,
+                            'descripcion' => $descripcionLinea,
                             'es_implementacion' => false
                         ];
                         $totalSuscripcion += (int)$valorLinea;
-                        $numeroCuotas++;
+                        $mesesConSuscripcion[$fechaCuota] = true;
                     }
                 } else {
                     // OTRO: la periodicidad del producto manda.
@@ -409,12 +418,15 @@ class ContratosClienteValores
                             'id_periodicidad_cobro' => $periodicidad,
                             'codigo_tipo_cobro' => $codigoTipo,
                             'orden' => $orden,
+                            'descripcion' => $descripcionLinea,
                             'es_implementacion' => false
                         ];
                         $totalOtros += (int)$valorLinea;
                     }
                 }
             }
+
+            $numeroCuotas = count($mesesConSuscripcion);
 
             // Se ordena por fecha y luego por el orden de la linea, para que la
             // grilla del contrato salga mes a mes en el mismo orden de la tarifa.

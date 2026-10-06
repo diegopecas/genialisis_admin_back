@@ -557,11 +557,11 @@ class ContratosCliente
 
         // Productos del contrato (lineas) para el detalle de la clausula de valor.
         $sentenceProductos = $db->prepare("
-            SELECT ps.nombre AS nombre_producto,
+            SELECT ps.nombre AS nombre_producto, cmp.descripcion,
                    COALESCE(cmp.codigo_tipo_cobro, " . TarifasPlanes::sqlCodigoTipoCobro('cl') . ") AS codigo_tipo_cobro,
                    ps.id_periodicidad_cobro,
                    pc.nombre AS nombre_periodicidad,
-                   cmp.valor_base, cmp.descuento, cmp.recargo, cmp.valor_final, cmp.orden
+                   cmp.valor_base, cmp.cantidad, cmp.descuento, cmp.recargo, cmp.valor_final, cmp.orden
             FROM contratos_cliente_productos cmp
             INNER JOIN productos_servicios ps ON cmp.id_producto_servicio = ps.id
             LEFT JOIN clasificacion_productos_servicios cl ON cl.id = ps.id_clasificacion_productos_servicios
